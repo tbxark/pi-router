@@ -1,0 +1,95 @@
+{
+  "name": "pi-router",
+  "displayName": "Pi Router",
+  "description": "Provides custom VS Code chat models through Pi.",
+  "version": "0.0.1",
+  "publisher": "tbxark",
+  "type": "module",
+  "main": "./out/extension.js",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tbxark/pi-router"
+  },
+  "files": [
+    "out/extension.js",
+    "out/configPanel.html",
+    "assets/icon.png",
+    "assets/icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "pi",
+        "displayName": "Pi Router"
+      }
+    ],
+    "commands": [
+      {
+        "command": "piRouter.configure",
+        "title": "Pi Router: Manage Providers"
+      },
+      {
+        "command": "piRouter.addProviderApiKey",
+        "title": "Pi Router: Add Provider API Key"
+      },
+      {
+        "command": "piRouter.loginOAuthProvider",
+        "title": "Pi Router: Sign in Provider with OAuth"
+      },
+      {
+        "command": "piRouter.clearCredentials",
+        "title": "Pi Router: Clear Credentials"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./ && cp src/configPanel.html out/configPanel.html",
+    "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --outfile=out/extension.js",
+    "lint": "eslint",
+    "lint:oxlint": "oxlint",
+    "lint:fix": "oxlint --fix && eslint --fix",
+    "watch": "tsc -watch -p ./",
+    "package:vsix": "pnpm run compile && pnpm run bundle && pnpm dlx @vscode/vsce package --no-dependencies --out pi-router.vsix",
+    "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "language-model",
+    "pi-router",
+    "pi-ai",
+    "vscode"
+  ],
+  "author": "tbxark",
+  "license": "MIT",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.7.0",
+      "onFail": "download"
+    }
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.79.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22",
+    "@types/vscode": "1.104.0",
+    "eslint": "^9.13.0",
+    "oxlint": "^1.70.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  }
+}
