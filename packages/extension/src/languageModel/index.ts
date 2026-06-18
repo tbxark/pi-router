@@ -1,28 +1,28 @@
 import * as vscode from 'vscode';
 import {
-  clampThinkingLevel,
   getApiProvider,
   getModels,
   type Api,
-  type AssistantMessage,
   type AssistantMessageEvent,
   type KnownProvider,
-  type Model,
-  type ModelThinkingLevel,
-  type ThinkingLevel,
-  type ToolCall
+  type Model
 } from '@earendil-works/pi-ai';
-import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
 import {
   createResponseConverter,
   textFromParts,
   toPiContext,
   toPiToolChoice,
-  toolModeLabel,
   type ResponseConverter
 } from './conversion';
-import { CredentialStore } from './credentials';
-import { getProviderDisplayName } from './providerMetadata';
+import { CredentialStore } from '../credentials';
+import { getProviderDisplayName } from '../shared/providerMetadata';
+import {
+  applyOAuthModelOverrides,
+  decodeLanguageModelId,
+  encodeLanguageModelId,
+  resolveReasoningLevel
+} from './modelUtils';
+import { RequestLogger } from './requestLogger';
 
 interface ResolvedLanguageModel {
   model: Model<Api>;
@@ -32,11 +32,14 @@ interface ResolvedLanguageModel {
 export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
+  private readonly logger: RequestLogger;
 
   constructor(
     private readonly credentials: CredentialStore,
-    private readonly output?: vscode.OutputChannel
-  ) {}
+    output?: vscode.OutputChannel
+  ) {
+    this.logger = new RequestLogger(output);
+  }
 
   refreshModels(): void {
     this.changeEmitter.fire();
@@ -101,7 +104,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
-      this.logRequest(model, messages, _options);
+      this.logger.logRequest(model, messages, _options);
 
       const requestOptions = {
         apiKey: credentials.apiKey,
@@ -167,36 +170,6 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       .flatMap((summary) => getModels(summary.providerId as KnownProvider) as Model<Api>[]);
   }
 
-  private logRequest(
-    model: Model<Api>,
-    messages: readonly vscode.LanguageModelChatRequestMessage[],
-    options: vscode.ProvideLanguageModelChatResponseOptions
-  ): void {
-    if (!this.output) {
-      return;
-    }
-
-    const toolNames = options.tools?.map((tool) => tool.name) ?? [];
-    this.output.appendLine(
-      [
-        `[${new Date().toISOString()}] request`,
-        `model=${model.provider}/${model.id}`,
-        `api=${model.api}`,
-        `messages=${messages.length}`,
-        `tools=${toolNames.length}`,
-        `toolMode=${toolModeLabel(options.toolMode)}`
-      ].join(' ')
-    );
-
-    if (toolNames.length > 0) {
-      this.output.appendLine(`tools: ${toolNames.join(', ')}`);
-    }
-  }
-
-  private logToolCall(toolCall: ToolCall): void {
-    this.output?.appendLine(`[${new Date().toISOString()}] tool_call id=${toolCall.id} name=${toolCall.name}`);
-  }
-
   private reportPiEvent(
     event: AssistantMessageEvent,
     convertEvent: ResponseConverter,
@@ -207,79 +180,12 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     }
 
     if (event.type === 'toolcall_end') {
-      this.logToolCall(event.toolCall);
+      this.logger.logToolCall(event.toolCall);
     } else if (event.type === 'done') {
-      this.logFinalMessage(event.message);
+      this.logger.logResponse(event.message);
     } else if (event.type === 'error') {
-      this.logFinalMessage(event.error);
+      this.logger.logResponse(event.error);
       throw new Error(event.error.errorMessage ?? 'pi-ai request failed.');
     }
   }
-
-  private logFinalMessage(message: AssistantMessage): void {
-    this.output?.appendLine(
-      [
-        `[${new Date().toISOString()}] response`,
-        `model=${message.provider}/${message.model}`,
-        `api=${message.api}`,
-        `stopReason=${message.stopReason}`,
-        `input=${message.usage.input}`,
-        `output=${message.usage.output}`,
-        `total=${message.usage.totalTokens}`,
-        `cost=${message.usage.cost.total}`,
-        message.responseId ? `responseId=${message.responseId}` : '',
-        message.responseModel ? `responseModel=${message.responseModel}` : ''
-      ]
-        .filter(Boolean)
-        .join(' ')
-    );
-  }
-}
-
-function encodeLanguageModelId(providerId: string, modelId: string): string {
-  return `${providerId}/${modelId}`;
-}
-
-function decodeLanguageModelId(id: string): { providerId: string; modelId: string } | undefined {
-  const separator = id.indexOf('/');
-  if (separator <= 0) {
-    return undefined;
-  }
-
-  return {
-    providerId: id.slice(0, separator),
-    modelId: id.slice(separator + 1)
-  };
-}
-
-/**
- * Resolves the effective reasoning level for a request. Reasoning-capable models
- * default to `medium` unless the user configured an explicit level (including `off`).
- * The level is clamped to what the model actually supports. Returns undefined when
- * thinking should be omitted (model lacks reasoning, or level resolves to `off`).
- */
-function resolveReasoningLevel(
-  model: Model<Api>,
-  configured: ModelThinkingLevel | undefined
-): ThinkingLevel | undefined {
-  if (!model.reasoning) {
-    return undefined;
-  }
-
-  const desired: ModelThinkingLevel = configured ?? 'medium';
-  if (desired === 'off') {
-    return undefined;
-  }
-
-  const clamped = clampThinkingLevel(model, desired);
-  return clamped === 'off' ? undefined : clamped;
-}
-
-function applyOAuthModelOverrides(model: Model<Api>, credentials: OAuthCredentials | undefined): Model<Api> {
-  if (!credentials) {
-    return model;
-  }
-
-  const provider = getOAuthProvider(model.provider);
-  return (provider?.modifyModels?.([model], credentials) as Model<Api>[] | undefined)?.[0] ?? model;
 }
