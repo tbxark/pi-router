@@ -84,6 +84,9 @@ Available commands:
 
 Credentials are stored in VS Code SecretStorage and are not written to repository files.
 
+![](./assets/example-1.png)
+![](./assets/example-2.png)
+
 ## Icon
 
 The source icon file is [`assets/icon.svg`](./assets/icon.svg). The extension manifest uses [`assets/icon.png`](./assets/icon.png), exported from that SVG, to meet the VS Code Marketplace/VSIX extension icon format requirements.
