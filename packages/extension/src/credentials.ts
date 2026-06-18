@@ -5,6 +5,7 @@ import {
   getOAuthProvider,
   type OAuthCredentials,
   type OAuthDeviceCodeInfo,
+  type OAuthLoginCallbacks,
   type OAuthSelectPrompt
 } from '@earendil-works/pi-ai/oauth';
 
@@ -109,7 +110,7 @@ export class CredentialStore {
 
   async loginOAuthProviderWithCallbacks(
     providerId: string,
-    callbacks: Record<string, (...args: any[]) => unknown>
+    callbacks: OAuthLoginCallbacks
   ): Promise<void> {
     const provider = getOAuthProvider(providerId);
     if (!provider) {
@@ -117,7 +118,7 @@ export class CredentialStore {
     }
 
     const existingEnv = (await this.getStoredCredential(providerId))?.env ?? {};
-    const credentials = await provider.login(callbacks as any);
+    const credentials = await provider.login(callbacks);
     await this.setProviderOAuthCredentials(providerId, credentials, existingEnv);
   }
 
