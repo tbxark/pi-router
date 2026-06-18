@@ -2,7 +2,7 @@
   "name": "pi-router",
   "displayName": "Pi Router",
   "description": "Provides custom VS Code chat models through Pi.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "tbxark",
   "type": "module",
   "main": "./out/extension.js",
