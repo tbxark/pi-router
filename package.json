@@ -29,7 +29,7 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "pi",
+        "vendor": "pi-router",
         "displayName": "Pi Router"
       }
     ],
@@ -60,7 +60,8 @@
     "lint:fix": "oxlint --fix && eslint --fix",
     "watch": "tsc -watch -p ./",
     "package:vsix": "pnpm run compile && pnpm run bundle && pnpm dlx @vscode/vsce package --no-dependencies --out pi-router.vsix",
-    "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix"
+    "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix",
+    "publish:vsix": "pnpm run package:vsix && pnpm dlx vsce publish --packagePath pi-router.vsix"
   },
   "keywords": [
     "ai",

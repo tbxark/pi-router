@@ -10,7 +10,11 @@ Pi Router provides custom VS Code chat models through Pi.
 
 Pi Router is a VS Code extension that exposes models supported by `@earendil-works/pi-ai` through the VS Code Language Model Chat API.
 
-The extension reads provider credentials configured in VS Code SecretStorage and registers models from configured providers under the `pi` vendor. It supports API keys as well as OAuth providers supported by `pi-ai`.
+The extension reads provider credentials configured in VS Code SecretStorage and registers models from configured providers under the `pi-router` vendor. It supports API keys as well as OAuth providers supported by `pi-ai`.
+
+## Download
+
+Install Pi Router from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=tbxark.pi-router).
 
 ## Requirements
 
@@ -69,7 +73,7 @@ pnpm run install:vsix
 2. Open the command palette and run `Pi Router: Manage Providers`.
 3. Select a provider, then save the API key or provider environment variables.
 4. If the provider supports OAuth, click the authorization button in the same configuration panel to sign in.
-5. After configuration, extensions that support the VS Code Language Model Chat API can discover and use models under the `pi` vendor.
+5. After configuration, extensions that support the VS Code Language Model Chat API can discover and use models under the `pi-router` vendor.
 
 Available commands:
 
