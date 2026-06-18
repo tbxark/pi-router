@@ -10,7 +10,14 @@ import {
   type ToolCall
 } from '@earendil-works/pi-ai';
 import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
-import { textFromParts, toPiContext, toPiToolChoice, toVSCodeResponseParts, toolModeLabel } from './conversion';
+import {
+  createResponseConverter,
+  textFromParts,
+  toPiContext,
+  toPiToolChoice,
+  toolModeLabel,
+  type ResponseConverter
+} from './conversion';
 import { CredentialStore } from './credentials';
 import { getProviderDisplayName } from './providerMetadata';
 
@@ -100,13 +107,14 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       }
 
       const stream = apiProvider.streamSimple(model, toPiContext(messages, _options), requestOptions);
+      const convertEvent = createResponseConverter();
 
       for await (const event of stream) {
         if (token.isCancellationRequested) {
           break;
         }
 
-        this.reportPiEvent(event, progress);
+        this.reportPiEvent(event, convertEvent, progress);
       }
     } finally {
       disposable.dispose();
@@ -169,9 +177,10 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
 
   private reportPiEvent(
     event: AssistantMessageEvent,
+    convertEvent: ResponseConverter,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>
   ): void {
-    for (const part of toVSCodeResponseParts(event)) {
+    for (const part of convertEvent(event)) {
       progress.report(part);
     }
 

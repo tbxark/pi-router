@@ -9,7 +9,7 @@ const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
   {
-    ignores: ['.vscode-test', 'examples', 'out', '**/*.d.ts']
+    ignores: ['.vscode-test', 'examples', 'out', '**/dist', '**/*.d.ts']
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],

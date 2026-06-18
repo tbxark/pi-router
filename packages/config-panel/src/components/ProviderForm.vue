@@ -131,7 +131,7 @@ watch(
       oauthStep.value = { type: 'idle' };
     } else {
       // Add mode — select first provider if none selected
-      if (props.state.providers.length && !props.state.providers.find(p => p.id === selectedProviderId.value)) {
+      if (props.state.providers.length && !props.state.providers.find((p) => p.id === selectedProviderId.value)) {
         selectedProviderId.value = props.state.providers[0].id;
       }
       apiKey.value = '';
@@ -154,9 +154,7 @@ watch(selectedProviderId, () => {
 const isEditing = computed(() => props.editingProviderId !== null);
 
 const editProvider = computed(() =>
-  isEditing.value
-    ? props.state.configured.find((c) => c.id === props.editingProviderId)
-    : undefined
+  isEditing.value ? props.state.configured.find((c) => c.id === props.editingProviderId) : undefined
 );
 
 const modalTitle = computed(() =>
@@ -195,7 +193,12 @@ const canUsePrimaryAction = computed(() => {
 function onSave() {
   if (!currentProvider.value) return;
 
-  if (isEditing.value && !confirmDangerousAction('Update this provider credentials? Existing saved credentials for this provider will be overwritten.')) {
+  if (
+    isEditing.value &&
+    !confirmDangerousAction(
+      'Update this provider credentials? Existing saved credentials for this provider will be overwritten.'
+    )
+  ) {
     return;
   }
 
@@ -227,7 +230,10 @@ function onPrimaryAction() {
 function onStartOAuth() {
   if (!currentProvider.value) return;
 
-  if (isEditing.value && !confirmDangerousAction('Reauthorize this provider? Existing OAuth credentials for this provider will be replaced.')) {
+  if (
+    isEditing.value &&
+    !confirmDangerousAction('Reauthorize this provider? Existing OAuth credentials for this provider will be replaced.')
+  ) {
     return;
   }
 
@@ -308,11 +314,7 @@ function onKeydown(e: KeyboardEvent) {
           <p>Select a provider first. The available authentication fields will update automatically.</p>
           <label for="providerSelect">Provider</label>
           <select id="providerSelect" v-model="selectedProviderId">
-            <option
-              v-for="p in state.providers"
-              :key="p.id"
-              :value="p.id"
-            >
+            <option v-for="p in state.providers" :key="p.id" :value="p.id">
               {{ p.label }} ({{ p.modelCount }} models)
             </option>
           </select>
@@ -331,7 +333,7 @@ function onKeydown(e: KeyboardEvent) {
           <div class="status-row">
             <span class="status-label">Status:</span>
             <span class="status-value">
-              {{ editProvider.authType === 'oauth' ? 'Authorized' : (editProvider.hasKey ? 'Key set' : 'No key set') }}
+              {{ editProvider.authType === 'oauth' ? 'Authorized' : editProvider.hasKey ? 'Key set' : 'No key set' }}
             </span>
           </div>
         </div>
@@ -350,18 +352,17 @@ function onKeydown(e: KeyboardEvent) {
             <code>{{ currentProvider.envHints.join(', ') }}</code>
           </div>
           <div class="sample-models">
-            <span
-              v-for="model in currentProvider.sampleModels"
-              :key="model"
-              class="model-tag"
-            >{{ model }}</span>
+            <span v-for="model in currentProvider.sampleModels" :key="model" class="model-tag">{{ model }}</span>
           </div>
         </div>
 
         <!-- OAuth section -->
         <div v-if="supportsOAuth && currentProvider" class="oauth-section">
           <div v-if="oauthStep.type === 'idle'" class="oauth-idle">
-            <p class="oauth-hint">Sign in with your {{ currentProvider.oauthName || currentProvider.label }} account to automatically obtain credentials.</p>
+            <p class="oauth-hint">
+              Sign in with your {{ currentProvider.oauthName || currentProvider.label }} account to automatically obtain
+              credentials.
+            </p>
             <button class="btn btn-oauth" @click="onStartOAuth">
               {{ oauthDisplayName }}
             </button>
@@ -416,7 +417,9 @@ function onKeydown(e: KeyboardEvent) {
                 :key="opt.id"
                 class="btn btn-secondary select-option"
                 @click="onSelectOAuthOption(opt.id)"
-              >{{ opt.label }}</button>
+              >
+                {{ opt.label }}
+              </button>
             </div>
             <button class="btn btn-small btn-link" @click="onCancelOAuth">Cancel</button>
           </div>
@@ -463,23 +466,16 @@ function onKeydown(e: KeyboardEvent) {
           />
 
           <label for="envText">Environment Variables</label>
-          <textarea
-            id="envText"
-            v-model="envText"
-            spellcheck="false"
-            :placeholder="envPlaceholder"
-          ></textarea>
+          <textarea id="envText" v-model="envText" spellcheck="false" :placeholder="envPlaceholder"></textarea>
           <p class="field-hint">One KEY=value per line. Lines starting with # are ignored.</p>
         </div>
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-secondary" @click="emit('close')">Cancel</button>
-        <button
-          class="btn btn-primary"
-          :disabled="!canUsePrimaryAction"
-          @click="onPrimaryAction"
-        >{{ primaryButtonText }}</button>
+        <button class="btn btn-primary" :disabled="!canUsePrimaryAction" @click="onPrimaryAction">
+          {{ primaryButtonText }}
+        </button>
       </div>
     </div>
   </div>
@@ -520,8 +516,14 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
@@ -882,7 +884,9 @@ textarea {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .oauth-step {
@@ -967,5 +971,4 @@ textarea {
   color: var(--vscode-inputValidation-errorForeground);
   font-size: 13px;
 }
-
 </style>

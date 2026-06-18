@@ -62,19 +62,10 @@ function onCloseModal() {
 
   <div v-if="error" class="error">{{ error }}</div>
 
-  <ProviderList
-    :state="state"
-    @add="onAddProvider"
-    @edit="onEditProvider"
-  />
+  <ProviderList :state="state" @add="onAddProvider" @edit="onEditProvider" />
 
   <Teleport to="body">
-    <ProviderForm
-      v-if="modalOpen"
-      :state="state"
-      :editingProviderId="editingProviderId"
-      @close="onCloseModal"
-    />
+    <ProviderForm v-if="modalOpen" :state="state" :editingProviderId="editingProviderId" @close="onCloseModal" />
   </Teleport>
 </template>
 
@@ -99,7 +90,9 @@ body {
   padding: 20px;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin: 0;
   line-height: 1.25;
 }

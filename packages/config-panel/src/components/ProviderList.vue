@@ -29,9 +29,7 @@ function onClearAll() {
     <h2>Active Providers</h2>
     <div class="toolbar-actions">
       <button class="btn btn-secondary" @click="onRefresh">Refresh</button>
-      <button class="btn btn-primary" @click="emit('add')">
-        <span class="btn-icon">+</span> Add Provider
-      </button>
+      <button class="btn btn-primary" @click="emit('add')"><span class="btn-icon">+</span> Add Provider</button>
     </div>
   </div>
 

@@ -108,10 +108,7 @@ export class CredentialStore {
     return this.loginOAuthProviderWithCallbacks(providerId, createOAuthCallbacks(providerId));
   }
 
-  async loginOAuthProviderWithCallbacks(
-    providerId: string,
-    callbacks: OAuthLoginCallbacks
-  ): Promise<void> {
+  async loginOAuthProviderWithCallbacks(providerId: string, callbacks: OAuthLoginCallbacks): Promise<void> {
     const provider = getOAuthProvider(providerId);
     if (!provider) {
       throw new Error(`pi-ai OAuth provider is not available for ${providerId}.`);

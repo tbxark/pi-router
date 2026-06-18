@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import { textFromParts, toPiContext, toPiToolChoice, toolModeLabel, toVSCodeResponseParts } from './conversion';
+import {
+  createResponseConverter,
+  textFromParts,
+  toPiContext,
+  toPiToolChoice,
+  toolModeLabel,
+  toVSCodeResponseParts
+} from './conversion';
 
 const DEFAULT_OPTIONS: vscode.ProvideLanguageModelChatResponseOptions = {
   toolMode: vscode.LanguageModelChatToolMode.Auto
@@ -165,7 +172,7 @@ describe('conversion', () => {
         { c: 3 },
         null
       ])
-    ).toBe('a{"b":2}[application/octet-stream data, 3 bytes, base64:cmF3]{"c":3}');
+    ).toBe('a{"b":2}[unsupported attachment: application/octet-stream, 3 bytes]{"c":3}');
   });
 
   it('restores thinking and text signatures from stored data events', () => {
@@ -202,9 +209,83 @@ describe('conversion', () => {
       role: 'assistant',
       timestamp: 123,
       content: [
-        { type: 'text', text: 'answer', textSignature: 'text-sig' },
-        { type: 'thinking', thinking: 'final thought', thinkingSignature: 'think-sig', redacted: false }
+        { type: 'thinking', thinking: 'final thought', thinkingSignature: 'think-sig', redacted: false },
+        { type: 'text', text: 'answer', textSignature: 'text-sig' }
       ]
     });
+  });
+
+  it('hoists thinking blocks ahead of text regardless of arrival order', () => {
+    const context = toPiContext(
+      [
+        requestMessage(vscode.LanguageModelChatMessageRole.Assistant, [
+          new vscode.LanguageModelTextPart('visible answer'),
+          vscode.LanguageModelDataPart.json(
+            { type: 'text_end', contentIndex: 0, content: 'visible answer' },
+            'application/vnd.pi.response-event+json'
+          ),
+          vscode.LanguageModelDataPart.json(
+            { type: 'thinking_end', contentIndex: 1, content: 'reasoning', thinkingSignature: 'sig' },
+            'application/vnd.pi.response-event+json'
+          )
+        ])
+      ],
+      DEFAULT_OPTIONS
+    );
+
+    expect(context.messages[0]).toMatchObject({
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'reasoning', thinkingSignature: 'sig' },
+        { type: 'text', text: 'visible answer' }
+      ]
+    });
+  });
+
+  it('backfills visible text when text_end arrives without any text_delta', () => {
+    const convert = createResponseConverter();
+
+    const parts = convert({
+      type: 'text_end',
+      contentIndex: 0,
+      content: 'whole answer',
+      partial: { content: [{ type: 'text', text: 'whole answer', textSignature: 'sig' }] }
+    } as never);
+
+    expect(parts[0]).toBeInstanceOf(vscode.LanguageModelTextPart);
+    expect((parts[0] as vscode.LanguageModelTextPart).value).toBe('whole answer');
+    expect(parts[1]).toBeInstanceOf(vscode.LanguageModelDataPart);
+  });
+
+  it('does not duplicate text when text_end follows streamed deltas', () => {
+    const convert = createResponseConverter();
+
+    convert({ type: 'text_delta', contentIndex: 0, delta: 'hel', partial: {} } as never);
+    convert({ type: 'text_delta', contentIndex: 0, delta: 'lo', partial: {} } as never);
+    const parts = convert({
+      type: 'text_end',
+      contentIndex: 0,
+      content: 'hello',
+      partial: { content: [{ type: 'text', text: 'hello' }] }
+    } as never);
+
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toBeInstanceOf(vscode.LanguageModelDataPart);
+  });
+
+  it('never emits thinking content as a visible text part', () => {
+    const convert = createResponseConverter();
+
+    const deltaParts = convert({ type: 'thinking_delta', contentIndex: 0, delta: 'secret', partial: {} } as never);
+    const endParts = convert({
+      type: 'thinking_end',
+      contentIndex: 0,
+      content: 'secret',
+      partial: { content: [{ type: 'thinking', thinking: 'secret', thinkingSignature: 'sig' }] }
+    } as never);
+
+    for (const part of [...deltaParts, ...endParts]) {
+      expect(part).not.toBeInstanceOf(vscode.LanguageModelTextPart);
+    }
   });
 });

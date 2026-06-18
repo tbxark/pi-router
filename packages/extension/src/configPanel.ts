@@ -142,10 +142,12 @@ export function openConfigPanel(
             break;
 
           case 'removeProvider':
-            if (!(await confirmDangerousAction(
-              `Remove ${getProviderDisplayName(message.providerId)} and delete its saved credentials? This cannot be undone.`,
-              'Remove'
-            ))) {
+            if (
+              !(await confirmDangerousAction(
+                `Remove ${getProviderDisplayName(message.providerId)} and delete its saved credentials? This cannot be undone.`,
+                'Remove'
+              ))
+            ) {
               return;
             }
 
@@ -155,7 +157,12 @@ export function openConfigPanel(
             break;
 
           case 'clearCredentials':
-            if (!(await confirmDangerousAction('Clear all saved Pi Router credentials? This cannot be undone.', 'Clear All'))) {
+            if (
+              !(await confirmDangerousAction(
+                'Clear all saved Pi Router credentials? This cannot be undone.',
+                'Clear All'
+              ))
+            ) {
               return;
             }
 
@@ -236,10 +243,7 @@ function isConfigMessage(value: unknown): value is ConfigMessage {
     return true;
   }
 
-  return (
-    ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type) &&
-    typeof message.providerId === 'string'
-  );
+  return ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type) && typeof message.providerId === 'string';
 }
 
 async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {

@@ -152,7 +152,22 @@ function toAssistantContent(
     }
   }
 
-  return content.filter((block) => block.type !== 'text' || block.text.length > 0);
+  const nonEmpty = content.filter((block) => block.type !== 'text' || block.text.length > 0);
+
+  // Providers such as Anthropic require thinking blocks to lead the assistant turn.
+  // The block order above mirrors the order parts arrived in; stably hoisting thinking
+  // blocks to the front makes that guarantee explicit instead of relying on the host
+  // preserving the original streaming order during history replay.
+  return stableSortThinkingFirst(nonEmpty);
+}
+
+function stableSortThinkingFirst(blocks: AssistantMessage['content']): AssistantMessage['content'] {
+  const thinking = blocks.filter((block) => block.type === 'thinking');
+  if (thinking.length === 0 || thinking.length === blocks.length) {
+    return blocks;
+  }
+
+  return [...thinking, ...blocks.filter((block) => block.type !== 'thinking')];
 }
 
 function toUserMessages(
@@ -163,13 +178,17 @@ function toUserMessages(
   let pendingContent: Array<TextContent | ImageContent> = [];
 
   const flushUserMessage = (): void => {
-    if (pendingContent.length === 0) {
+    // Drop empty text blocks so a message that only carried whitespace-free empty
+    // parts does not turn into an empty user message (which some providers reject).
+    const meaningful = pendingContent.filter((block) => block.type !== 'text' || block.text.length > 0);
+    if (meaningful.length === 0) {
+      pendingContent = [];
       return;
     }
 
     messages.push({
       role: 'user',
-      content: normalizeUserContent(pendingContent),
+      content: normalizeUserContent(meaningful),
       timestamp: Date.now()
     });
     pendingContent = [];
@@ -201,6 +220,8 @@ function toToolResultMessage(
     toolCallId: part.callId,
     toolName: toolNamesByCallId.get(part.callId) ?? 'unknown',
     content: toToolResultContent(part.content),
+    // VS Code's request-side LanguageModelToolResultPart carries no error flag, so we
+    // cannot reliably tell whether the tool failed. Any error text lives in `content`.
     isError: false,
     timestamp: Date.now()
   };
@@ -256,41 +277,78 @@ export function toPiToolChoice(api: Api, toolMode: vscode.LanguageModelChatToolM
   return 'required';
 }
 
-export function toVSCodeResponseParts(event: AssistantMessageEvent): vscode.LanguageModelResponsePart[] {
-  if (event.type === 'text_delta') {
-    return [new vscode.LanguageModelTextPart(event.delta)];
-  }
+export type ResponseConverter = (event: AssistantMessageEvent) => vscode.LanguageModelResponsePart[];
 
-  if (event.type === 'text_end') {
-    const block = event.partial.content[event.contentIndex];
-    const textSignature = block?.type === 'text' ? block.textSignature : undefined;
-    return [
-      toPiDataPart({ type: 'text_end', contentIndex: event.contentIndex, content: event.content, textSignature })
-    ];
-  }
+/**
+ * Creates a stateful converter for a single response stream. State is needed so
+ * that `text_end` can detect whether any `text_delta` ever carried the visible
+ * text for a given content index. Some providers stream the whole text only in
+ * `text_end.content` without emitting deltas; without this guard that text would
+ * never reach the user (and would be lost on history replay too).
+ */
+export function createResponseConverter(): ResponseConverter {
+  const textIndicesWithDelta = new Set<number>();
 
-  if (event.type === 'thinking_delta') {
-    return [toPiDataPart({ type: 'thinking_delta', contentIndex: event.contentIndex, delta: event.delta })];
-  }
+  return (event: AssistantMessageEvent): vscode.LanguageModelResponsePart[] => {
+    if (event.type === 'text_delta') {
+      textIndicesWithDelta.add(event.contentIndex);
+      return [new vscode.LanguageModelTextPart(event.delta)];
+    }
 
-  if (event.type === 'thinking_end') {
-    const block = event.partial.content[event.contentIndex];
-    return [
-      toPiDataPart({
+    if (event.type === 'text_end') {
+      const block = event.partial.content[event.contentIndex];
+      const textSignature = block?.type === 'text' ? block.textSignature : undefined;
+      const parts: vscode.LanguageModelResponsePart[] = [];
+
+      // Backfill the visible text when no delta was ever streamed for this index.
+      if (!textIndicesWithDelta.has(event.contentIndex) && event.content.length > 0) {
+        parts.push(new vscode.LanguageModelTextPart(event.content));
+      }
+
+      const dataPart = toPiDataPart({
+        type: 'text_end',
+        contentIndex: event.contentIndex,
+        content: event.content,
+        textSignature
+      });
+      if (dataPart) {
+        parts.push(dataPart);
+      }
+
+      return parts;
+    }
+
+    if (event.type === 'thinking_delta') {
+      const dataPart = toPiDataPart({ type: 'thinking_delta', contentIndex: event.contentIndex, delta: event.delta });
+      return dataPart ? [dataPart] : [];
+    }
+
+    if (event.type === 'thinking_end') {
+      const block = event.partial.content[event.contentIndex];
+      const dataPart = toPiDataPart({
         type: 'thinking_end',
         contentIndex: event.contentIndex,
         content: event.content,
         thinkingSignature: block?.type === 'thinking' ? block.thinkingSignature : undefined,
         redacted: block?.type === 'thinking' ? block.redacted : undefined
-      })
-    ];
-  }
+      });
+      return dataPart ? [dataPart] : [];
+    }
 
-  if (event.type === 'toolcall_end') {
-    return [new vscode.LanguageModelToolCallPart(event.toolCall.id, event.toolCall.name, event.toolCall.arguments)];
-  }
+    if (event.type === 'toolcall_end') {
+      return [new vscode.LanguageModelToolCallPart(event.toolCall.id, event.toolCall.name, event.toolCall.arguments)];
+    }
 
-  return [];
+    return [];
+  };
+}
+
+/**
+ * Stateless convenience wrapper around {@link createResponseConverter}. Prefer the
+ * factory for live response streams; this is kept for one-off conversions and tests.
+ */
+export function toVSCodeResponseParts(event: AssistantMessageEvent): vscode.LanguageModelResponsePart[] {
+  return createResponseConverter()(event);
 }
 
 function normalizeUserContent(blocks: Array<TextContent | ImageContent>): string | Array<TextContent | ImageContent> {
@@ -323,7 +381,10 @@ function dataPartToText(part: DataPartLike): string {
     return text;
   }
 
-  return `[${part.mimeType} data, ${part.data.byteLength} bytes, base64:${Buffer.from(part.data).toString('base64')}]`;
+  // Binary attachments (PDFs, audio, etc.) cannot be consumed as text by the model.
+  // Emit a compact placeholder instead of inlining the full base64 payload, which
+  // would otherwise flood the context with an undecodable blob.
+  return `[unsupported attachment: ${part.mimeType}, ${part.data.byteLength} bytes]`;
 }
 
 function dataPartToPiResponseEvent(part: DataPartLike): PiResponseDataEvent | undefined {
@@ -362,7 +423,7 @@ function dataPartToPiResponseEvent(part: DataPartLike): PiResponseDataEvent | un
   return undefined;
 }
 
-function toPiDataPart(payload: PiResponseDataEvent): vscode.LanguageModelResponsePart {
+function toPiDataPart(payload: PiResponseDataEvent): vscode.LanguageModelResponsePart | undefined {
   const dataPart = (
     vscode as unknown as {
       LanguageModelDataPart?: {
@@ -371,10 +432,10 @@ function toPiDataPart(payload: PiResponseDataEvent): vscode.LanguageModelRespons
     }
   ).LanguageModelDataPart;
 
-  return (
-    dataPart?.json(payload, payload.type === 'thinking_delta' ? PI_THINKING_DELTA_MIME : PI_RESPONSE_EVENT_MIME) ??
-    new vscode.LanguageModelTextPart(payload.type === 'thinking_delta' ? payload.delta : '')
-  );
+  // When the host lacks LanguageModelDataPart we cannot round-trip reasoning
+  // metadata. Returning undefined drops these hidden payloads rather than leaking
+  // thinking content into the visible response as plain text.
+  return dataPart?.json(payload, payload.type === 'thinking_delta' ? PI_THINKING_DELTA_MIME : PI_RESPONSE_EVENT_MIME);
 }
 
 function normalizeToolSchema(schema: object | undefined): TSchema {
@@ -382,14 +443,7 @@ function normalizeToolSchema(schema: object | undefined): TSchema {
     return EMPTY_OBJECT_SCHEMA;
   }
 
-  if (
-    'type' in schema ||
-    'properties' in schema ||
-    '$ref' in schema ||
-    'anyOf' in schema ||
-    'oneOf' in schema ||
-    'allOf' in schema
-  ) {
+  if (looksLikeJsonSchema(schema)) {
     return schema as TSchema;
   }
 
@@ -397,6 +451,30 @@ function normalizeToolSchema(schema: object | undefined): TSchema {
     ...EMPTY_OBJECT_SCHEMA,
     properties: schema as Record<string, unknown>
   } as TSchema;
+}
+
+/**
+ * Heuristic to tell a real JSON Schema from a `{ propName: descriptor }` shorthand.
+ * Checks the *shape* of each keyword's value rather than mere key presence, so a tool
+ * parameter that happens to be named `type`/`properties`/`anyOf`/... (whose value would
+ * be an object/array of the wrong shape) is not misread as a full schema.
+ */
+function looksLikeJsonSchema(schema: object): boolean {
+  const record = schema as Record<string, unknown>;
+  const type = record.type;
+  if (typeof type === 'string' || (Array.isArray(type) && type.every((entry) => typeof entry === 'string'))) {
+    return true;
+  }
+
+  if (typeof record.$ref === 'string') {
+    return true;
+  }
+
+  if (record.properties !== null && typeof record.properties === 'object' && !Array.isArray(record.properties)) {
+    return true;
+  }
+
+  return ['anyOf', 'oneOf', 'allOf'].some((keyword) => Array.isArray(record[keyword]));
 }
 
 export function toolModeLabel(toolMode: vscode.LanguageModelChatToolMode): string {

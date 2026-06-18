@@ -20,7 +20,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('piRouter.addProviderApiKey', () => setProviderApiKey(credentials, provider)),
     vscode.commands.registerCommand('piRouter.loginOAuthProvider', () => loginOAuthProvider(credentials, provider)),
     vscode.commands.registerCommand('piRouter.clearCredentials', async () => {
-      if (!(await confirmDangerousAction('Clear all saved Pi Router credentials? This cannot be undone.', 'Clear All'))) {
+      if (
+        !(await confirmDangerousAction('Clear all saved Pi Router credentials? This cannot be undone.', 'Clear All'))
+      ) {
         return;
       }
 
