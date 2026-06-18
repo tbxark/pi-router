@@ -2,7 +2,7 @@
   "name": "pi-router",
   "displayName": "Pi Router",
   "description": "Provides custom VS Code chat models through Pi.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "tbxark",
   "type": "module",
   "main": "./out/extension.js",
@@ -60,6 +60,8 @@
     "lint": "eslint",
     "lint:oxlint": "oxlint",
     "lint:fix": "oxlint --fix && eslint --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "watch": "tsc -watch -p ./",
     "package:vsix": "pnpm run compile && pnpm run bundle && pnpm dlx @vscode/vsce package --no-dependencies --out pi-router.vsix",
     "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix",
@@ -94,6 +96,7 @@
     "oxfmt": "^0.55.0",
     "oxlint": "^1.70.0",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.39.0"
+    "typescript-eslint": "^8.39.0",
+    "vitest": "^4.1.9"
   }
 }

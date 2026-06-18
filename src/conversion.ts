@@ -264,7 +264,9 @@ export function toVSCodeResponseParts(event: AssistantMessageEvent): vscode.Lang
   if (event.type === 'text_end') {
     const block = event.partial.content[event.contentIndex];
     const textSignature = block?.type === 'text' ? block.textSignature : undefined;
-    return [toPiDataPart({ type: 'text_end', contentIndex: event.contentIndex, content: event.content, textSignature })];
+    return [
+      toPiDataPart({ type: 'text_end', contentIndex: event.contentIndex, content: event.content, textSignature })
+    ];
   }
 
   if (event.type === 'thinking_delta') {
@@ -331,11 +333,7 @@ function dataPartToPiResponseEvent(part: DataPartLike): PiResponseDataEvent | un
 
   try {
     const value = JSON.parse(new TextDecoder().decode(part.data)) as Partial<PiResponseDataEvent>;
-    if (
-      value.type === 'text_end' &&
-      typeof value.contentIndex === 'number' &&
-      typeof value.content === 'string'
-    ) {
+    if (value.type === 'text_end' && typeof value.contentIndex === 'number' && typeof value.content === 'string') {
       return {
         type: 'text_end',
         contentIndex: value.contentIndex,
@@ -344,19 +342,11 @@ function dataPartToPiResponseEvent(part: DataPartLike): PiResponseDataEvent | un
       };
     }
 
-    if (
-      value.type === 'thinking_delta' &&
-      typeof value.contentIndex === 'number' &&
-      typeof value.delta === 'string'
-    ) {
+    if (value.type === 'thinking_delta' && typeof value.contentIndex === 'number' && typeof value.delta === 'string') {
       return { type: 'thinking_delta', contentIndex: value.contentIndex, delta: value.delta };
     }
 
-    if (
-      value.type === 'thinking_end' &&
-      typeof value.contentIndex === 'number' &&
-      typeof value.content === 'string'
-    ) {
+    if (value.type === 'thinking_end' && typeof value.contentIndex === 'number' && typeof value.content === 'string') {
       return {
         type: 'thinking_end',
         contentIndex: value.contentIndex,
@@ -381,8 +371,10 @@ function toPiDataPart(payload: PiResponseDataEvent): vscode.LanguageModelRespons
     }
   ).LanguageModelDataPart;
 
-  return dataPart?.json(payload, payload.type === 'thinking_delta' ? PI_THINKING_DELTA_MIME : PI_RESPONSE_EVENT_MIME) ??
-    new vscode.LanguageModelTextPart(payload.type === 'thinking_delta' ? payload.delta : '');
+  return (
+    dataPart?.json(payload, payload.type === 'thinking_delta' ? PI_THINKING_DELTA_MIME : PI_RESPONSE_EVENT_MIME) ??
+    new vscode.LanguageModelTextPart(payload.type === 'thinking_delta' ? payload.delta : '')
+  );
 }
 
 function normalizeToolSchema(schema: object | undefined): TSchema {
