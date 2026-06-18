@@ -20,6 +20,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('piRouter.addProviderApiKey', () => setProviderApiKey(credentials, provider)),
     vscode.commands.registerCommand('piRouter.loginOAuthProvider', () => loginOAuthProvider(credentials, provider)),
     vscode.commands.registerCommand('piRouter.clearCredentials', async () => {
+      if (!(await confirmDangerousAction('Clear all saved Pi Router credentials? This cannot be undone.', 'Clear All'))) {
+        return;
+      }
+
       await credentials.clearAll();
       provider.refreshModels();
       vscode.window.showInformationMessage('Pi Router credentials cleared.');
@@ -39,6 +43,16 @@ async function setProviderApiKey(credentials: CredentialStore, provider: PiLangu
   );
   if (!providerId) {
     return;
+  }
+
+  if (await hasProviderCredentials(credentials, providerId)) {
+    const confirmed = await confirmDangerousAction(
+      `Update ${getProviderDisplayName(providerId)} credentials? Existing saved credentials for this provider will be overwritten.`,
+      'Update'
+    );
+    if (!confirmed) {
+      return;
+    }
   }
 
   const apiKey = await vscode.window.showInputBox({
@@ -62,9 +76,28 @@ async function loginOAuthProvider(credentials: CredentialStore, provider: PiLang
     return;
   }
 
+  if (await hasProviderCredentials(credentials, providerId)) {
+    const confirmed = await confirmDangerousAction(
+      `Reauthorize ${getProviderDisplayName(providerId)}? Existing OAuth credentials for this provider will be replaced.`,
+      'Reauthorize'
+    );
+    if (!confirmed) {
+      return;
+    }
+  }
+
   await credentials.loginOAuthProvider(providerId);
   provider.refreshModels();
   vscode.window.showInformationMessage(`${getProviderDisplayName(providerId)} OAuth login completed.`);
+}
+
+async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
+  const selected = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+  return selected === confirmLabel;
+}
+
+async function hasProviderCredentials(credentials: CredentialStore, providerId: string): Promise<boolean> {
+  return (await credentials.listProviderCredentials()).some((summary) => summary.providerId === providerId);
 }
 
 async function pickProvider(providerIds: readonly string[]): Promise<string | undefined> {

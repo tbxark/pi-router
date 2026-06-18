@@ -104,13 +104,20 @@ export class CredentialStore {
   }
 
   async loginOAuthProvider(providerId: string): Promise<void> {
+    return this.loginOAuthProviderWithCallbacks(providerId, createOAuthCallbacks(providerId));
+  }
+
+  async loginOAuthProviderWithCallbacks(
+    providerId: string,
+    callbacks: Record<string, (...args: any[]) => unknown>
+  ): Promise<void> {
     const provider = getOAuthProvider(providerId);
     if (!provider) {
       throw new Error(`pi-ai OAuth provider is not available for ${providerId}.`);
     }
 
     const existingEnv = (await this.getStoredCredential(providerId))?.env ?? {};
-    const credentials = await provider.login(createOAuthCallbacks(provider.name));
+    const credentials = await provider.login(callbacks as any);
     await this.setProviderOAuthCredentials(providerId, credentials, existingEnv);
   }
 
@@ -237,7 +244,8 @@ function normalizeEnv(env: ProviderEnv): ProviderEnv {
   );
 }
 
-function createOAuthCallbacks(providerName: string) {
+function createOAuthCallbacks(providerId: string) {
+  const providerName = getOAuthProvider(providerId)?.name ?? providerId;
   return {
     onAuth: (info: { url: string; instructions?: string }) => {
       void vscode.env.openExternal(vscode.Uri.parse(info.url));

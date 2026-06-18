@@ -51,12 +51,36 @@ export interface ClearCredentialsMessage {
   type: 'clearCredentials';
 }
 
+export interface OAuthPromptResponseMessage {
+  type: 'oauthPromptResponse';
+  value: string;
+}
+
+export interface OAuthSelectResponseMessage {
+  type: 'oauthSelectResponse';
+  id: string;
+}
+
+export interface OAuthManualCodeResponseMessage {
+  type: 'oauthManualCodeResponse';
+  value: string;
+}
+
+export interface OAuthOpenUrlMessage {
+  type: 'oauthOpenUrl';
+  url: string;
+}
+
 export type WebviewMessage =
   | ReadyMessage
   | SaveApiKeyMessage
   | LoginOAuthMessage
   | RemoveProviderMessage
-  | ClearCredentialsMessage;
+  | ClearCredentialsMessage
+  | OAuthPromptResponseMessage
+  | OAuthSelectResponseMessage
+  | OAuthManualCodeResponseMessage
+  | OAuthOpenUrlMessage;
 
 // ── Extension → Webview ──────────────────────────────────────────────
 
@@ -70,4 +94,58 @@ export interface ErrorMessage {
   error: string;
 }
 
-export type ExtensionMessage = StateMessage | ErrorMessage;
+export interface OAuthAuthMessage {
+  type: 'oauthAuth';
+  providerId: string;
+  url: string;
+  instructions?: string;
+}
+
+export interface OAuthDeviceCodeMessage {
+  type: 'oauthDeviceCode';
+  providerId: string;
+  userCode: string;
+  verificationUri: string;
+}
+
+export interface OAuthPromptMessage {
+  type: 'oauthPrompt';
+  providerId: string;
+  message: string;
+  placeholder?: string;
+  allowEmpty?: boolean;
+}
+
+export interface OAuthSelectMessage {
+  type: 'oauthSelect';
+  providerId: string;
+  message: string;
+  options: { id: string; label: string }[];
+}
+
+export interface OAuthManualCodeInputMessage {
+  type: 'oauthManualCodeInput';
+  providerId: string;
+}
+
+export interface OAuthProgressMessage {
+  type: 'oauthProgress';
+  providerId: string;
+  message: string;
+}
+
+export interface OAuthDoneMessage {
+  type: 'oauthDone';
+  providerId: string;
+}
+
+export type ExtensionMessage =
+  | StateMessage
+  | ErrorMessage
+  | OAuthAuthMessage
+  | OAuthDeviceCodeMessage
+  | OAuthPromptMessage
+  | OAuthSelectMessage
+  | OAuthManualCodeInputMessage
+  | OAuthProgressMessage
+  | OAuthDoneMessage;

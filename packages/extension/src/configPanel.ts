@@ -33,6 +33,9 @@ export function openConfigPanel(
     await panel.webview.postMessage({ type: 'state', state: await getPanelState(credentials) });
   }
 
+  // OAuth-in-webview state: resolvers that bridge async callbacks → webview messages
+  let oauthResolver: ((value: string) => void) | null = null;
+
   disposables.push(
     panel.webview.onDidReceiveMessage(async (message: unknown) => {
       try {
@@ -40,54 +43,133 @@ export function openConfigPanel(
           return;
         }
 
-        if (message.type === 'ready') {
-          await postState();
-        } else if (message.type === 'saveApiKey') {
-          await credentials.setProviderApiKey(
-            message.providerId,
-            String(message.apiKey ?? ''),
-            parseEnvText(String(message.envText ?? ''))
-          );
-          provider.refreshModels();
-          await postState();
-          vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} credentials saved.`);
-        } else if (message.type === 'loginOAuth') {
-          await credentials.loginOAuthProvider(message.providerId);
-          provider.refreshModels();
-          await postState();
-          vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} OAuth login completed.`);
-        } else if (message.type === 'removeProvider') {
-          const confirmed = await confirmDangerousAction(
-            `Remove ${getProviderDisplayName(message.providerId)} credentials?`,
-            'Remove'
-          );
-          if (!confirmed) {
-            return;
-          }
-          await credentials.removeProvider(message.providerId);
-          provider.refreshModels();
-          await postState();
-        } else if (message.type === 'clearCredentials') {
-          const confirmed = await confirmDangerousAction('Clear all Pi Router credentials?', 'Clear All');
-          if (!confirmed) {
-            return;
-          }
-          await credentials.clearAll();
-          provider.refreshModels();
-          await postState();
+        switch (message.type) {
+          case 'ready':
+            await postState();
+            break;
+
+          case 'saveApiKey':
+            await credentials.setProviderApiKey(
+              message.providerId,
+              String(message.apiKey ?? ''),
+              parseEnvText(String(message.envText ?? ''))
+            );
+            provider.refreshModels();
+            await postState();
+            break;
+
+          case 'loginOAuth':
+            await credentials.loginOAuthProviderWithCallbacks(message.providerId, {
+              onAuth: (info: { url: string; instructions?: string }) => {
+                void panel.webview.postMessage({
+                  type: 'oauthAuth',
+                  providerId: message.providerId,
+                  url: info.url,
+                  instructions: info.instructions
+                });
+                void vscode.env.openExternal(vscode.Uri.parse(info.url));
+              },
+              onDeviceCode: (info: { userCode: string; verificationUri: string }) => {
+                void panel.webview.postMessage({
+                  type: 'oauthDeviceCode',
+                  providerId: message.providerId,
+                  userCode: info.userCode,
+                  verificationUri: info.verificationUri
+                });
+              },
+              onPrompt: async (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => {
+                return new Promise<string>((resolve) => {
+                  oauthResolver = resolve;
+                  void panel.webview.postMessage({
+                    type: 'oauthPrompt',
+                    providerId: message.providerId,
+                    message: prompt.message,
+                    placeholder: prompt.placeholder,
+                    allowEmpty: prompt.allowEmpty
+                  });
+                });
+              },
+              onSelect: async (prompt: { message: string; options: { id: string; label: string }[] }) => {
+                return new Promise<string>((resolve) => {
+                  oauthResolver = resolve;
+                  void panel.webview.postMessage({
+                    type: 'oauthSelect',
+                    providerId: message.providerId,
+                    message: prompt.message,
+                    options: prompt.options
+                  });
+                });
+              },
+              onManualCodeInput: async () => {
+                return new Promise<string>((resolve) => {
+                  oauthResolver = resolve;
+                  void panel.webview.postMessage({
+                    type: 'oauthManualCodeInput',
+                    providerId: message.providerId
+                  });
+                });
+              },
+              onProgress: (msg: string) => {
+                void panel.webview.postMessage({
+                  type: 'oauthProgress',
+                  providerId: message.providerId,
+                  message: msg
+                });
+              }
+            });
+            provider.refreshModels();
+            await postState();
+            void panel.webview.postMessage({ type: 'oauthDone', providerId: message.providerId });
+            break;
+
+          case 'oauthPromptResponse':
+            oauthResolver?.(message.value);
+            oauthResolver = null;
+            break;
+
+          case 'oauthSelectResponse':
+            oauthResolver?.(message.id);
+            oauthResolver = null;
+            break;
+
+          case 'oauthManualCodeResponse':
+            oauthResolver?.(message.value);
+            oauthResolver = null;
+            break;
+
+          case 'oauthOpenUrl':
+            void vscode.env.openExternal(vscode.Uri.parse(message.url));
+            break;
+
+          case 'removeProvider':
+            if (!(await confirmDangerousAction(
+              `Remove ${getProviderDisplayName(message.providerId)} and delete its saved credentials? This cannot be undone.`,
+              'Remove'
+            ))) {
+              return;
+            }
+
+            await credentials.removeProvider(message.providerId);
+            provider.refreshModels();
+            await postState();
+            break;
+
+          case 'clearCredentials':
+            if (!(await confirmDangerousAction('Clear all saved Pi Router credentials? This cannot be undone.', 'Clear All'))) {
+              return;
+            }
+
+            await credentials.clearAll();
+            provider.refreshModels();
+            await postState();
+            break;
         }
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error);
         await panel.webview.postMessage({ type: 'error', error: text });
-        vscode.window.showErrorMessage(text);
       }
     }, undefined)
   );
-}
-
-async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
-  const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
-  return choice === confirmLabel;
 }
 
 interface ProviderOption {
@@ -120,23 +202,49 @@ type ConfigMessage =
   | { type: 'saveApiKey'; providerId: string; apiKey?: unknown; envText?: unknown }
   | { type: 'loginOAuth'; providerId: string }
   | { type: 'removeProvider'; providerId: string }
-  | { type: 'clearCredentials' };
+  | { type: 'clearCredentials' }
+  | { type: 'oauthPromptResponse'; value: string }
+  | { type: 'oauthSelectResponse'; id: string }
+  | { type: 'oauthManualCodeResponse'; value: string }
+  | { type: 'oauthOpenUrl'; url: string };
 
 function isConfigMessage(value: unknown): value is ConfigMessage {
   if (typeof value !== 'object' || value === null || !('type' in value)) {
     return false;
   }
 
-  const type = String(value.type);
+  const message = value as Record<string, unknown>;
+  const type = String(message.type);
+
   if (type === 'ready' || type === 'clearCredentials') {
+    return true;
+  }
+
+  if (type === 'oauthPromptResponse' && typeof message.value === 'string') {
+    return true;
+  }
+
+  if (type === 'oauthSelectResponse' && typeof message.id === 'string') {
+    return true;
+  }
+
+  if (type === 'oauthManualCodeResponse' && typeof message.value === 'string') {
+    return true;
+  }
+
+  if (type === 'oauthOpenUrl' && typeof message.url === 'string') {
     return true;
   }
 
   return (
     ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type) &&
-    'providerId' in value &&
-    typeof value.providerId === 'string'
+    typeof message.providerId === 'string'
   );
+}
+
+async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
+  const selected = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+  return selected === confirmLabel;
 }
 
 async function getPanelState(credentials: CredentialStore): Promise<PanelState> {

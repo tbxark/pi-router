@@ -56,7 +56,7 @@
     "compile": "tsc -p ./",
     "build": "pnpm run compile",
     "copy:webview": "mkdir -p out/webview && cp -R ../config-panel/dist/* out/webview/",
-    "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --outfile=out/extension.js",
+    "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --sourcemap --outfile=out/extension.js",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "eslint",
