@@ -49,7 +49,10 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
 
-  constructor(private readonly credentials: CredentialStore) {}
+  constructor(
+    private readonly credentials: CredentialStore,
+    private readonly output?: vscode.OutputChannel
+  ) {}
 
   refreshModels(): void {
     this.changeEmitter.fire();
@@ -109,6 +112,8 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
+      this.logRequest(model, messages, _options);
+
       const requestOptions = {
         apiKey: credentials.apiKey,
         env: credentials.env,
@@ -130,6 +135,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
         if (event.type === 'text_delta') {
           progress.report(new vscode.LanguageModelTextPart(event.delta));
         } else if (event.type === 'toolcall_end') {
+          this.logToolCall(event.toolCall);
           progress.report(
             new vscode.LanguageModelToolCallPart(
               event.toolCall.id,
@@ -168,6 +174,38 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
   private async getConfiguredModels(): Promise<Model<Api>[]> {
     const providerIds = await this.credentials.getConfiguredProviderIds();
     return providerIds.flatMap((providerId) => getModels(providerId as KnownProvider) as Model<Api>[]);
+  }
+
+  private logRequest(
+    model: Model<Api>,
+    messages: readonly vscode.LanguageModelChatRequestMessage[],
+    options: vscode.ProvideLanguageModelChatResponseOptions
+  ): void {
+    if (!this.output) {
+      return;
+    }
+
+    const toolNames = options.tools?.map((tool) => tool.name) ?? [];
+    this.output.appendLine(
+      [
+        `[${new Date().toISOString()}] request`,
+        `model=${model.provider}/${model.id}`,
+        `api=${model.api}`,
+        `messages=${messages.length}`,
+        `tools=${toolNames.length}`,
+        `toolMode=${toolModeLabel(options.toolMode)}`
+      ].join(' ')
+    );
+
+    if (toolNames.length > 0) {
+      this.output.appendLine(`tools: ${toolNames.join(', ')}`);
+    }
+  }
+
+  private logToolCall(toolCall: ToolCall): void {
+    this.output?.appendLine(
+      `[${new Date().toISOString()}] tool_call id=${toolCall.id} name=${toolCall.name}`
+    );
   }
 }
 
@@ -368,6 +406,17 @@ function normalizeUserContent(blocks: Array<TextContent | ImageContent>): string
   }
 
   return blocks.map((block) => (block.type === 'text' ? block.text : '')).join('');
+}
+
+function toolModeLabel(toolMode: vscode.LanguageModelChatToolMode): string {
+  switch (toolMode) {
+    case vscode.LanguageModelChatToolMode.Auto:
+      return 'auto';
+    case vscode.LanguageModelChatToolMode.Required:
+      return 'required';
+    default:
+      return `unknown(${toolMode})`;
+  }
 }
 
 function textFromParts(parts: ReadonlyArray<vscode.LanguageModelInputPart | unknown>): string {

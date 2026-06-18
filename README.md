@@ -1,6 +1,6 @@
 <p align="center">
   <a href="./assets/icon.svg">
-    <img src="./assets/icon.png" width="96" height="96" alt="Pi Router icon">
+    <img src="./assets/icon.png" width="160" height="160" alt="Pi Router icon">
   </a>
 </p>
 

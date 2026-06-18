@@ -10,9 +10,11 @@ const VENDOR_ID = 'pi-router';
 
 export function activate(context: vscode.ExtensionContext): void {
   const credentials = new CredentialStore(context);
-  const provider = new PiLanguageModelProvider(credentials);
+  const output = vscode.window.createOutputChannel('Pi Router');
+  const provider = new PiLanguageModelProvider(credentials, output);
 
   context.subscriptions.push(
+    output,
     vscode.lm.registerLanguageModelChatProvider(VENDOR_ID, provider),
     vscode.commands.registerCommand('piRouter.configure', () => openConfigPanel(context, credentials, provider)),
     vscode.commands.registerCommand('piRouter.addProviderApiKey', () => setProviderApiKey(credentials, provider)),
