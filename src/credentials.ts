@@ -60,9 +60,8 @@ export class CredentialStore {
       .map(([providerId, credential]) => ({
         providerId,
         type: credential.type,
-        hasKey: credential.type === 'api_key'
-          ? Boolean(credential.key || getEnvApiKey(providerId, credential.env))
-          : true,
+        hasKey:
+          credential.type === 'api_key' ? Boolean(credential.key || getEnvApiKey(providerId, credential.env)) : true,
         envKeys: Object.keys(credential.env ?? {}).sort(),
         updatedAt: credential.updatedAt
       }));
@@ -234,14 +233,13 @@ function createOAuthCallbacks(providerName: string) {
     },
     onDeviceCode: (info: OAuthDeviceCodeInfo) => {
       void vscode.env.clipboard.writeText(info.userCode);
-      void vscode.window.showInformationMessage(
-        `${providerName} device code copied: ${info.userCode}`,
-        'Open Login Page'
-      ).then((choice) => {
-        if (choice === 'Open Login Page') {
-          void vscode.env.openExternal(vscode.Uri.parse(info.verificationUri));
-        }
-      });
+      void vscode.window
+        .showInformationMessage(`${providerName} device code copied: ${info.userCode}`, 'Open Login Page')
+        .then((choice) => {
+          if (choice === 'Open Login Page') {
+            void vscode.env.openExternal(vscode.Uri.parse(info.verificationUri));
+          }
+        });
     },
     onPrompt: async (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => {
       const value = await vscode.window.showInputBox({

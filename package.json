@@ -55,6 +55,8 @@
   "scripts": {
     "compile": "tsc -p ./ && cp src/configPanel.html out/configPanel.html",
     "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --outfile=out/extension.js",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "lint": "eslint",
     "lint:oxlint": "oxlint",
     "lint:fix": "oxlint --fix && eslint --fix",
@@ -89,6 +91,7 @@
     "@types/node": "^22",
     "@types/vscode": "1.104.0",
     "eslint": "^9.13.0",
+    "oxfmt": "^0.55.0",
     "oxlint": "^1.70.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0"

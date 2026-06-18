@@ -10,7 +10,11 @@ import {
   type KnownProvider,
   type Message,
   type Model,
-  type TextContent
+  type TextContent,
+  type Tool,
+  type ToolCall,
+  type ToolResultMessage,
+  type TSchema
 } from '@earendil-works/pi-ai';
 import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
 import { CredentialStore } from './credentials.js';
@@ -55,20 +59,22 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     _options: vscode.PrepareLanguageModelChatModelOptions,
     _token: vscode.CancellationToken
   ): vscode.ProviderResult<vscode.LanguageModelChatInformation[]> | Promise<vscode.LanguageModelChatInformation[]> {
-    return this.getConfiguredModels().then((models) => models.map((model) => ({
-      id: encodeLanguageModelId(model.provider, model.id),
-      name: model.name,
-      family: getProviderDisplayName(model.provider),
-      detail: `${getProviderDisplayName(model.provider)} via pi-ai`,
-      tooltip: `${model.provider}/${model.id}`,
-      version: '1.0.0',
-      maxInputTokens: model.contextWindow,
-      maxOutputTokens: model.maxTokens,
-      capabilities: {
-        imageInput: model.input.includes('image'),
-        toolCalling: true
-      }
-    })));
+    return this.getConfiguredModels().then((models) =>
+      models.map((model) => ({
+        id: encodeLanguageModelId(model.provider, model.id),
+        name: model.name,
+        family: getProviderDisplayName(model.provider),
+        detail: `${getProviderDisplayName(model.provider)} via pi-ai`,
+        tooltip: `${model.provider}/${model.id}`,
+        version: '1.0.0',
+        maxInputTokens: model.contextWindow,
+        maxOutputTokens: model.maxTokens,
+        capabilities: {
+          imageInput: model.input.includes('image'),
+          toolCalling: true
+        }
+      }))
+    );
   }
 
   async provideLanguageModelChatResponse(
@@ -86,7 +92,11 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
 
     const credentials = await this.credentials.resolveProviderCredentials(resolved.providerId);
     if (!credentials?.apiKey) {
-      progress.report(new vscode.LanguageModelTextPart(`Credentials are missing for ${resolved.providerId}. Run "Pi Router: Manage Providers" and add this provider.`));
+      progress.report(
+        new vscode.LanguageModelTextPart(
+          `Credentials are missing for ${resolved.providerId}. Run "Pi Router: Manage Providers" and add this provider.`
+        )
+      );
       return;
     }
 
@@ -99,12 +109,18 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
-      const stream = apiProvider.streamSimple(model, toPiContext(messages), {
+      const requestOptions = {
         apiKey: credentials.apiKey,
         env: credentials.env,
         signal: abort.signal,
         sessionId: `${model.provider}-vscode-pi-chat`
-      });
+      } as Parameters<typeof apiProvider.streamSimple>[2] & { toolChoice?: string };
+
+      if (_options.tools?.length) {
+        requestOptions.toolChoice = toPiToolChoice(model.api, _options.toolMode);
+      }
+
+      const stream = apiProvider.streamSimple(model, toPiContext(messages, _options), requestOptions);
 
       for await (const event of stream) {
         if (token.isCancellationRequested) {
@@ -113,6 +129,14 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
 
         if (event.type === 'text_delta') {
           progress.report(new vscode.LanguageModelTextPart(event.delta));
+        } else if (event.type === 'toolcall_end') {
+          progress.report(
+            new vscode.LanguageModelToolCallPart(
+              event.toolCall.id,
+              event.toolCall.name,
+              event.toolCall.arguments
+            )
+          );
         } else if (event.type === 'error') {
           throw new Error(event.error.errorMessage ?? 'pi-ai request failed.');
         }
@@ -172,76 +196,211 @@ function applyOAuthModelOverrides(model: Model<Api>, credentials: OAuthCredentia
   return (provider?.modifyModels?.([model], credentials) as Model<Api>[] | undefined)?.[0] ?? model;
 }
 
-function toPiContext(messages: readonly vscode.LanguageModelChatRequestMessage[]): Context {
+function toPiContext(
+  messages: readonly vscode.LanguageModelChatRequestMessage[],
+  options: vscode.ProvideLanguageModelChatResponseOptions
+): Context {
+  const toolNamesByCallId = new Map<string, string>();
+  const piMessages = messages.flatMap((message) => toPiMessages(message, toolNamesByCallId));
+
   return {
-    messages: messages.map(toPiMessage)
+    messages: piMessages,
+    tools: toPiTools(options.tools)
   };
 }
 
-function toPiMessage(message: vscode.LanguageModelChatRequestMessage): Message {
+function toPiMessages(
+  message: vscode.LanguageModelChatRequestMessage,
+  toolNamesByCallId: Map<string, string>
+): Message[] {
   if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
-    return {
-      role: 'assistant',
-      content: [{ type: 'text', text: textFromParts(message.content) }],
-      api: 'openai-completions',
-      provider: 'vscode-history',
-      model: 'unknown',
-      usage: ZERO_USAGE,
-      stopReason: 'stop',
-      timestamp: Date.now()
-    } satisfies AssistantMessage;
+    return [
+      {
+        role: 'assistant',
+        content: toAssistantContent(message.content, toolNamesByCallId),
+        api: 'openai-completions',
+        provider: 'vscode-history',
+        model: 'unknown',
+        usage: ZERO_USAGE,
+        stopReason: 'stop',
+        timestamp: Date.now()
+      } satisfies AssistantMessage
+    ];
   }
 
-  return {
-    role: 'user',
-    content: toUserContent(message.content),
-    timestamp: Date.now()
-  };
+  return toUserMessages(message.content, toolNamesByCallId);
 }
 
-function toUserContent(parts: ReadonlyArray<vscode.LanguageModelInputPart | unknown>): string | Array<TextContent | ImageContent> {
-  const blocks: Array<TextContent | ImageContent> = [];
+function toAssistantContent(
+  parts: ReadonlyArray<vscode.LanguageModelInputPart | unknown>,
+  toolNamesByCallId: Map<string, string>
+): AssistantMessage['content'] {
+  const content: AssistantMessage['content'] = [];
 
   for (const part of parts) {
     if (part instanceof vscode.LanguageModelTextPart) {
-      blocks.push({ type: 'text', text: part.value });
+      if (part.value) {
+        content.push({ type: 'text', text: part.value });
+      }
+    } else if (isToolCallPartLike(part)) {
+      toolNamesByCallId.set(part.callId, part.name);
+      content.push({
+        type: 'toolCall',
+        id: part.callId,
+        name: part.name,
+        arguments: part.input as ToolCall['arguments']
+      });
+    }
+  }
+
+  return content;
+}
+
+function toUserMessages(
+  parts: ReadonlyArray<vscode.LanguageModelInputPart | unknown>,
+  toolNamesByCallId: Map<string, string>
+): Message[] {
+  const messages: Message[] = [];
+  let pendingContent: Array<TextContent | ImageContent> = [];
+
+  const flushUserMessage = (): void => {
+    if (pendingContent.length === 0) {
+      return;
+    }
+
+    messages.push({
+      role: 'user',
+      content: normalizeUserContent(pendingContent),
+      timestamp: Date.now()
+    });
+    pendingContent = [];
+  };
+
+  for (const part of parts) {
+    if (part instanceof vscode.LanguageModelTextPart) {
+      pendingContent.push({ type: 'text', text: part.value });
     } else if (isDataPartLike(part) && part.mimeType.startsWith('image/')) {
-      blocks.push({
+      pendingContent.push({
         type: 'image',
         data: Buffer.from(part.data).toString('base64'),
         mimeType: part.mimeType
       });
     } else if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
-      blocks.push({ type: 'text', text: new TextDecoder().decode(part.data) });
+      pendingContent.push({ type: 'text', text: new TextDecoder().decode(part.data) });
+    } else if (isToolResultPartLike(part)) {
+      flushUserMessage();
+      messages.push(toToolResultMessage(part, toolNamesByCallId));
     }
   }
 
+  flushUserMessage();
+  return messages;
+}
+
+function toToolResultMessage(
+  part: vscode.LanguageModelToolResultPart,
+  toolNamesByCallId: Map<string, string>
+): ToolResultMessage {
+  return {
+    role: 'toolResult',
+    toolCallId: part.callId,
+    toolName: toolNamesByCallId.get(part.callId) ?? 'unknown',
+    content: toToolResultContent(part.content),
+    isError: false,
+    timestamp: Date.now()
+  };
+}
+
+function toToolResultContent(
+  parts: ReadonlyArray<vscode.LanguageModelTextPart | unknown>
+): Array<TextContent | ImageContent> {
+  const content: Array<TextContent | ImageContent> = [];
+
+  for (const part of parts) {
+    if (part instanceof vscode.LanguageModelTextPart) {
+      content.push({ type: 'text', text: part.value });
+    } else if (isDataPartLike(part) && part.mimeType.startsWith('image/')) {
+      content.push({
+        type: 'image',
+        data: Buffer.from(part.data).toString('base64'),
+        mimeType: part.mimeType
+      });
+    } else if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
+      content.push({ type: 'text', text: new TextDecoder().decode(part.data) });
+    }
+  }
+
+  return content.length > 0 ? content : [{ type: 'text', text: '' }];
+}
+
+function toPiTools(tools: readonly vscode.LanguageModelChatTool[] | undefined): Tool[] | undefined {
+  if (!tools?.length) {
+    return undefined;
+  }
+
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: (tool.inputSchema ?? { type: 'object', properties: {} }) as TSchema
+  }));
+}
+
+function toPiToolChoice(api: Api, toolMode: vscode.LanguageModelChatToolMode): string {
+  if (toolMode !== vscode.LanguageModelChatToolMode.Required) {
+    return 'auto';
+  }
+
+  if (
+    api === 'anthropic-messages' ||
+    api === 'bedrock-converse-stream' ||
+    api === 'google-generative-ai' ||
+    api === 'google-vertex'
+  ) {
+    return 'any';
+  }
+
+  return 'required';
+}
+
+function normalizeUserContent(blocks: Array<TextContent | ImageContent>): string | Array<TextContent | ImageContent> {
   if (blocks.some((block) => block.type === 'image')) {
     return blocks;
   }
 
-  return blocks.map((block) => block.type === 'text' ? block.text : '').join('');
+  return blocks.map((block) => (block.type === 'text' ? block.text : '')).join('');
 }
 
 function textFromParts(parts: ReadonlyArray<vscode.LanguageModelInputPart | unknown>): string {
-  return parts.map((part) => {
-    if (part instanceof vscode.LanguageModelTextPart) {
-      return part.value;
-    }
+  return parts
+    .map((part) => {
+      if (part instanceof vscode.LanguageModelTextPart) {
+        return part.value;
+      }
 
-    if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
-      return new TextDecoder().decode(part.data);
-    }
+      if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
+        return new TextDecoder().decode(part.data);
+      }
 
-    return '';
-  }).join('');
+      return '';
+    })
+    .join('');
 }
 
 function isDataPartLike(part: unknown): part is DataPartLike {
-  return typeof part === 'object'
-    && part !== null
-    && 'mimeType' in part
-    && typeof part.mimeType === 'string'
-    && 'data' in part
-    && part.data instanceof Uint8Array;
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    'mimeType' in part &&
+    typeof part.mimeType === 'string' &&
+    'data' in part &&
+    part.data instanceof Uint8Array
+  );
+}
+
+function isToolCallPartLike(part: unknown): part is vscode.LanguageModelToolCallPart {
+  return part instanceof vscode.LanguageModelToolCallPart;
+}
+
+function isToolResultPartLike(part: unknown): part is vscode.LanguageModelToolResultPart {
+  return part instanceof vscode.LanguageModelToolResultPart;
 }

@@ -5,12 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: [
-      '.vscode-test',
-      'examples',
-      'out',
-      '**/*.d.ts'
-    ]
+    ignores: ['.vscode-test', 'examples', 'out', '**/*.d.ts']
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}']

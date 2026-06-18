@@ -1,344 +1,384 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{{nonce}}';" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pi Router Providers</title>
-  <style>
-    :root {
-      color-scheme: dark light;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{{nonce}}';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pi Router Providers</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+      }
 
-    body {
-      color: var(--vscode-foreground);
-      font-family: var(--vscode-font-family);
-      font-size: var(--vscode-font-size);
-      padding: 20px;
-    }
+      body {
+        color: var(--vscode-foreground);
+        font-family: var(--vscode-font-family);
+        font-size: var(--vscode-font-size);
+        padding: 20px;
+      }
 
-    h1, h2, h3 {
-      margin: 0;
-      line-height: 1.25;
-    }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.25;
+      }
 
-    h1 {
-      font-size: 22px;
-      margin-bottom: 16px;
-    }
+      h1 {
+        font-size: 22px;
+        margin-bottom: 16px;
+      }
 
-    h2 {
-      font-size: 16px;
-      margin-bottom: 12px;
-    }
+      h2 {
+        font-size: 16px;
+        margin-bottom: 12px;
+      }
 
-    h3 {
-      font-size: 13px;
-    }
+      h3 {
+        font-size: 13px;
+      }
 
-    .layout {
-      display: grid;
-      gap: 18px;
-      grid-template-columns: minmax(260px, 360px) 1fr;
-    }
-
-    @media (max-width: 860px) {
       .layout {
-        grid-template-columns: 1fr;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(260px, 360px) 1fr;
       }
-    }
 
-    .panel {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 14px;
-    }
+      @media (max-width: 860px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    .toolbar {
-      align-items: center;
-      display: flex;
-      gap: 8px;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
+      .panel {
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        padding: 14px;
+      }
 
-    .configured-list {
-      display: grid;
-      gap: 10px;
-    }
+      .toolbar {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
 
-    .provider-card {
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 6px;
-      padding: 12px;
-    }
+      .configured-list {
+        display: grid;
+        gap: 10px;
+      }
 
-    .provider-head {
-      align-items: start;
-      display: flex;
-      gap: 8px;
-      justify-content: space-between;
-    }
+      .provider-card {
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 6px;
+        padding: 12px;
+      }
 
-    .meta {
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      margin-top: 4px;
-    }
+      .provider-head {
+        align-items: start;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+      }
 
-    .pill-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-    }
+      .meta {
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+        margin-top: 4px;
+      }
 
-    .pill {
-      background: var(--vscode-badge-background);
-      border-radius: 999px;
-      color: var(--vscode-badge-foreground);
-      font-size: 11px;
-      padding: 2px 8px;
-    }
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
 
-    label {
-      display: block;
-      font-weight: 600;
-      margin: 12px 0 6px;
-    }
+      .pill {
+        background: var(--vscode-badge-background);
+        border-radius: 999px;
+        color: var(--vscode-badge-foreground);
+        font-size: 11px;
+        padding: 2px 8px;
+      }
 
-    select, input, textarea {
-      background: var(--vscode-input-background);
-      border: 1px solid var(--vscode-input-border);
-      box-sizing: border-box;
-      color: var(--vscode-input-foreground);
-      font-family: var(--vscode-font-family);
-      padding: 8px;
-      width: 100%;
-    }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 12px 0 6px;
+      }
 
-    textarea {
-      min-height: 118px;
-      resize: vertical;
-    }
+      select,
+      input,
+      textarea {
+        background: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        box-sizing: border-box;
+        color: var(--vscode-input-foreground);
+        font-family: var(--vscode-font-family);
+        padding: 8px;
+        width: 100%;
+      }
 
-    button {
-      background: var(--vscode-button-secondaryBackground);
-      border: 0;
-      border-radius: 4px;
-      color: var(--vscode-button-secondaryForeground);
-      cursor: pointer;
-      padding: 7px 10px;
-    }
+      textarea {
+        min-height: 118px;
+        resize: vertical;
+      }
 
-    button.primary {
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-    }
+      button {
+        background: var(--vscode-button-secondaryBackground);
+        border: 0;
+        border-radius: 4px;
+        color: var(--vscode-button-secondaryForeground);
+        cursor: pointer;
+        padding: 7px 10px;
+      }
 
-    button.danger {
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-    }
+      button.primary {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+      }
 
-    button:disabled {
-      cursor: default;
-      opacity: 0.45;
-    }
+      button.danger {
+        background: var(--vscode-inputValidation-errorBackground);
+        color: var(--vscode-inputValidation-errorForeground);
+      }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-    }
+      button:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
 
-    .error {
-      color: var(--vscode-errorForeground);
-      min-height: 18px;
-      margin-bottom: 10px;
-    }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
 
-    .muted {
-      color: var(--vscode-descriptionForeground);
-    }
+      .error {
+        color: var(--vscode-errorForeground);
+        min-height: 18px;
+        margin-bottom: 10px;
+      }
 
-    .model-list {
-      margin: 8px 0 0;
-      padding-left: 18px;
-    }
-  </style>
-</head>
-<body>
-  <h1>Pi Router Providers</h1>
-  <div id="error" class="error"></div>
+      .muted {
+        color: var(--vscode-descriptionForeground);
+      }
 
-  <div class="layout">
-    <section class="panel">
-      <h2>Add or Update Provider</h2>
-      <label for="providerSelect">Provider</label>
-      <select id="providerSelect"></select>
+      .model-list {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pi Router Providers</h1>
+    <div id="error" class="error"></div>
 
-      <div id="providerMeta" class="meta"></div>
-      <ul id="modelPreview" class="model-list muted"></ul>
+    <div class="layout">
+      <section class="panel">
+        <h2>Add or Update Provider</h2>
+        <label for="providerSelect">Provider</label>
+        <select id="providerSelect"></select>
 
-      <div id="oauthBlock">
-        <div class="actions">
-          <button id="loginOAuth" class="primary">Authorize with OAuth</button>
+        <div id="providerMeta" class="meta"></div>
+        <ul id="modelPreview" class="model-list muted"></ul>
+
+        <div id="oauthBlock">
+          <div class="actions">
+            <button id="loginOAuth" class="primary">Authorize with OAuth</button>
+          </div>
         </div>
-      </div>
 
-      <label for="apiKey">API Key</label>
-      <input id="apiKey" type="password" autocomplete="off" placeholder="Paste API key" />
+        <label for="apiKey">API Key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="Paste API key" />
 
-      <label for="envText">Provider Env</label>
-      <textarea id="envText" spellcheck="false" placeholder="KEY=value"></textarea>
+        <label for="envText">Provider Env</label>
+        <textarea id="envText" spellcheck="false" placeholder="KEY=value"></textarea>
 
-      <div class="actions">
-        <button id="saveApiKey" class="primary">Save API Key / Env</button>
-      </div>
-    </section>
+        <div class="actions">
+          <button id="saveApiKey" class="primary">Save API Key / Env</button>
+        </div>
+      </section>
 
-    <section class="panel">
-      <div class="toolbar">
-        <h2>Active Providers</h2>
-        <button id="refresh">Refresh</button>
-      </div>
-      <div id="configuredList" class="configured-list"></div>
-      <div class="actions">
-        <button id="clearCredentials" class="danger">Clear All Credentials</button>
-      </div>
-    </section>
-  </div>
+      <section class="panel">
+        <div class="toolbar">
+          <h2>Active Providers</h2>
+          <button id="refresh">Refresh</button>
+        </div>
+        <div id="configuredList" class="configured-list"></div>
+        <div class="actions">
+          <button id="clearCredentials" class="danger">Clear All Credentials</button>
+        </div>
+      </section>
+    </div>
 
-  <script nonce="{{nonce}}">
-    const vscode = acquireVsCodeApi();
-    const els = {
-      error: document.getElementById('error'),
-      providerSelect: document.getElementById('providerSelect'),
-      providerMeta: document.getElementById('providerMeta'),
-      modelPreview: document.getElementById('modelPreview'),
-      oauthBlock: document.getElementById('oauthBlock'),
-      loginOAuth: document.getElementById('loginOAuth'),
-      apiKey: document.getElementById('apiKey'),
-      envText: document.getElementById('envText'),
-      saveApiKey: document.getElementById('saveApiKey'),
-      configuredList: document.getElementById('configuredList'),
-      refresh: document.getElementById('refresh'),
-      clearCredentials: document.getElementById('clearCredentials')
-    };
+    <script nonce="{{nonce}}">
+      const vscode = acquireVsCodeApi();
+      const els = {
+        error: document.getElementById('error'),
+        providerSelect: document.getElementById('providerSelect'),
+        providerMeta: document.getElementById('providerMeta'),
+        modelPreview: document.getElementById('modelPreview'),
+        oauthBlock: document.getElementById('oauthBlock'),
+        loginOAuth: document.getElementById('loginOAuth'),
+        apiKey: document.getElementById('apiKey'),
+        envText: document.getElementById('envText'),
+        saveApiKey: document.getElementById('saveApiKey'),
+        configuredList: document.getElementById('configuredList'),
+        refresh: document.getElementById('refresh'),
+        clearCredentials: document.getElementById('clearCredentials')
+      };
 
-    let state = { providers: [], configured: [], oauthProviderIds: [] };
+      let state = { providers: [], configured: [], oauthProviderIds: [] };
 
-    function currentProvider() {
-      return state.providers.find((provider) => provider.id === els.providerSelect.value);
-    }
-
-    function renderProviders() {
-      const selected = els.providerSelect.value;
-      els.providerSelect.innerHTML = state.providers.map((provider) => (
-        '<option value="' + escapeHtml(provider.id) + '">' + escapeHtml(provider.label) + ' (' + provider.modelCount + ')</option>'
-      )).join('');
-      if (selected && state.providers.some((provider) => provider.id === selected)) {
-        els.providerSelect.value = selected;
-      }
-      renderSelectedProvider();
-    }
-
-    function renderSelectedProvider() {
-      const provider = currentProvider();
-      if (!provider) {
-        return;
+      function currentProvider() {
+        return state.providers.find((provider) => provider.id === els.providerSelect.value);
       }
 
-      const supportsOAuth = state.oauthProviderIds.includes(provider.id);
-      els.oauthBlock.style.display = supportsOAuth ? 'block' : 'none';
-      els.loginOAuth.textContent = provider.oauthName ? 'Authorize ' + provider.oauthName : 'Authorize with OAuth';
-      els.providerMeta.textContent = [
-        provider.modelCount + ' models',
-        provider.apiKeyEnvVars.length ? 'API key: ' + provider.apiKeyEnvVars.join(' or ') : '',
-        provider.envHints.length ? 'Env: ' + provider.envHints.join(', ') : ''
-      ].filter(Boolean).join(' | ');
-
-      els.modelPreview.innerHTML = provider.sampleModels.map((model) => '<li>' + escapeHtml(model) + '</li>').join('');
-      const envLines = [...provider.apiKeyEnvVars, ...provider.envHints]
-        .filter((key, index, list) => list.indexOf(key) === index)
-        .map((key) => key + '=');
-      els.envText.placeholder = envLines.length ? envLines.join('\n') : 'KEY=value';
-    }
-
-    function renderConfigured() {
-      if (!state.configured.length) {
-        els.configuredList.innerHTML = '<div class="muted">No active providers.</div>';
-        return;
+      function renderProviders() {
+        const selected = els.providerSelect.value;
+        els.providerSelect.innerHTML = state.providers
+          .map(
+            (provider) =>
+              '<option value="' +
+              escapeHtml(provider.id) +
+              '">' +
+              escapeHtml(provider.label) +
+              ' (' +
+              provider.modelCount +
+              ')</option>'
+          )
+          .join('');
+        if (selected && state.providers.some((provider) => provider.id === selected)) {
+          els.providerSelect.value = selected;
+        }
+        renderSelectedProvider();
       }
 
-      els.configuredList.innerHTML = state.configured.map((provider) => {
-        const env = provider.envKeys.length
-          ? '<div class="pill-row">' + provider.envKeys.map((key) => '<span class="pill">' + escapeHtml(key) + '</span>').join('') + '</div>'
-          : '';
-        return '<div class="provider-card">'
-          + '<div class="provider-head">'
-          + '<div><h3>' + escapeHtml(provider.label) + '</h3>'
-          + '<div class="meta">' + escapeHtml(provider.id) + ' | ' + provider.modelCount + ' models | ' + escapeHtml(provider.authType) + '</div></div>'
-          + '<button data-remove="' + escapeHtml(provider.id) + '">Remove</button>'
-          + '</div>'
-          + env
-          + '</div>';
-      }).join('');
+      function renderSelectedProvider() {
+        const provider = currentProvider();
+        if (!provider) {
+          return;
+        }
 
-      els.configuredList.querySelectorAll('[data-remove]').forEach((button) => {
-        button.addEventListener('click', () => {
-          vscode.postMessage({ type: 'removeProvider', providerId: button.getAttribute('data-remove') });
+        const supportsOAuth = state.oauthProviderIds.includes(provider.id);
+        els.oauthBlock.style.display = supportsOAuth ? 'block' : 'none';
+        els.loginOAuth.textContent = provider.oauthName ? 'Authorize ' + provider.oauthName : 'Authorize with OAuth';
+        els.providerMeta.textContent = [
+          provider.modelCount + ' models',
+          provider.apiKeyEnvVars.length ? 'API key: ' + provider.apiKeyEnvVars.join(' or ') : '',
+          provider.envHints.length ? 'Env: ' + provider.envHints.join(', ') : ''
+        ]
+          .filter(Boolean)
+          .join(' | ');
+
+        els.modelPreview.innerHTML = provider.sampleModels
+          .map((model) => '<li>' + escapeHtml(model) + '</li>')
+          .join('');
+        const envLines = [...provider.apiKeyEnvVars, ...provider.envHints]
+          .filter((key, index, list) => list.indexOf(key) === index)
+          .map((key) => key + '=');
+        els.envText.placeholder = envLines.length ? envLines.join('\n') : 'KEY=value';
+      }
+
+      function renderConfigured() {
+        if (!state.configured.length) {
+          els.configuredList.innerHTML = '<div class="muted">No active providers.</div>';
+          return;
+        }
+
+        els.configuredList.innerHTML = state.configured
+          .map((provider) => {
+            const env = provider.envKeys.length
+              ? '<div class="pill-row">' +
+                provider.envKeys.map((key) => '<span class="pill">' + escapeHtml(key) + '</span>').join('') +
+                '</div>'
+              : '';
+            return (
+              '<div class="provider-card">' +
+              '<div class="provider-head">' +
+              '<div><h3>' +
+              escapeHtml(provider.label) +
+              '</h3>' +
+              '<div class="meta">' +
+              escapeHtml(provider.id) +
+              ' | ' +
+              provider.modelCount +
+              ' models | ' +
+              escapeHtml(provider.authType) +
+              '</div></div>' +
+              '<button data-remove="' +
+              escapeHtml(provider.id) +
+              '">Remove</button>' +
+              '</div>' +
+              env +
+              '</div>'
+            );
+          })
+          .join('');
+
+        els.configuredList.querySelectorAll('[data-remove]').forEach((button) => {
+          button.addEventListener('click', () => {
+            vscode.postMessage({ type: 'removeProvider', providerId: button.getAttribute('data-remove') });
+          });
         });
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(
+          /[&<>"']/g,
+          (char) =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;'
+            })[char]
+        );
+      }
+
+      els.providerSelect.addEventListener('change', renderSelectedProvider);
+      els.refresh.addEventListener('click', () => vscode.postMessage({ type: 'ready' }));
+      els.loginOAuth.addEventListener('click', () => {
+        const provider = currentProvider();
+        if (provider) {
+          vscode.postMessage({ type: 'loginOAuth', providerId: provider.id });
+        }
       });
-    }
+      els.saveApiKey.addEventListener('click', () => {
+        const provider = currentProvider();
+        if (provider) {
+          vscode.postMessage({
+            type: 'saveApiKey',
+            providerId: provider.id,
+            apiKey: els.apiKey.value,
+            envText: els.envText.value
+          });
+          els.apiKey.value = '';
+        }
+      });
+      els.clearCredentials.addEventListener('click', () => vscode.postMessage({ type: 'clearCredentials' }));
 
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[char]));
-    }
+      window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (message.type === 'state') {
+          state = message.state;
+          els.error.textContent = '';
+          renderProviders();
+          renderConfigured();
+        } else if (message.type === 'error') {
+          els.error.textContent = message.error;
+        }
+      });
 
-    els.providerSelect.addEventListener('change', renderSelectedProvider);
-    els.refresh.addEventListener('click', () => vscode.postMessage({ type: 'ready' }));
-    els.loginOAuth.addEventListener('click', () => {
-      const provider = currentProvider();
-      if (provider) {
-        vscode.postMessage({ type: 'loginOAuth', providerId: provider.id });
-      }
-    });
-    els.saveApiKey.addEventListener('click', () => {
-      const provider = currentProvider();
-      if (provider) {
-        vscode.postMessage({
-          type: 'saveApiKey',
-          providerId: provider.id,
-          apiKey: els.apiKey.value,
-          envText: els.envText.value
-        });
-        els.apiKey.value = '';
-      }
-    });
-    els.clearCredentials.addEventListener('click', () => vscode.postMessage({ type: 'clearCredentials' }));
-
-    window.addEventListener('message', (event) => {
-      const message = event.data;
-      if (message.type === 'state') {
-        state = message.state;
-        els.error.textContent = '';
-        renderProviders();
-        renderConfigured();
-      } else if (message.type === 'error') {
-        els.error.textContent = message.error;
-      }
-    });
-
-    vscode.postMessage({ type: 'ready' });
-  </script>
-</body>
+      vscode.postMessage({ type: 'ready' });
+    </script>
+  </body>
 </html>

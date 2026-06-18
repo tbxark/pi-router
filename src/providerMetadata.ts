@@ -85,12 +85,14 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
 };
 
 export function getProviderMetadata(providerId: string): ProviderMetadata {
-  return PROVIDER_METADATA[providerId] ?? {
-    label: providerId
-      .split('-')
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ')
-  };
+  return (
+    PROVIDER_METADATA[providerId] ?? {
+      label: providerId
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+    }
+  );
 }
 
 export function getProviderDisplayName(providerId: string): string {

@@ -5,11 +5,7 @@ import { getModels, getProviders, type KnownProvider, type ProviderEnv } from '@
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
 import { CredentialStore } from './credentials.js';
 import { PiLanguageModelProvider } from './provider.js';
-import {
-  getProviderApiKeyEnvVars,
-  getProviderDisplayName,
-  getProviderEnvHints
-} from './providerMetadata.js';
+import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata.js';
 
 export function openConfigPanel(
   context: vscode.ExtensionContext,
@@ -30,39 +26,47 @@ export function openConfigPanel(
     await panel.webview.postMessage({ type: 'state', state: await getPanelState(credentials) });
   }
 
-  panel.webview.onDidReceiveMessage(async (message: unknown) => {
-    try {
-      if (!isConfigMessage(message)) {
-        return;
-      }
+  panel.webview.onDidReceiveMessage(
+    async (message: unknown) => {
+      try {
+        if (!isConfigMessage(message)) {
+          return;
+        }
 
-      if (message.type === 'ready') {
-        await postState();
-      } else if (message.type === 'saveApiKey') {
-        await credentials.setProviderApiKey(message.providerId, String(message.apiKey ?? ''), parseEnvText(String(message.envText ?? '')));
-        provider.refreshModels();
-        await postState();
-        vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} credentials saved.`);
-      } else if (message.type === 'loginOAuth') {
-        await credentials.loginOAuthProvider(message.providerId);
-        provider.refreshModels();
-        await postState();
-        vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} OAuth login completed.`);
-      } else if (message.type === 'removeProvider') {
-        await credentials.removeProvider(message.providerId);
-        provider.refreshModels();
-        await postState();
-      } else if (message.type === 'clearCredentials') {
-        await credentials.clearAll();
-        provider.refreshModels();
-        await postState();
+        if (message.type === 'ready') {
+          await postState();
+        } else if (message.type === 'saveApiKey') {
+          await credentials.setProviderApiKey(
+            message.providerId,
+            String(message.apiKey ?? ''),
+            parseEnvText(String(message.envText ?? ''))
+          );
+          provider.refreshModels();
+          await postState();
+          vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} credentials saved.`);
+        } else if (message.type === 'loginOAuth') {
+          await credentials.loginOAuthProvider(message.providerId);
+          provider.refreshModels();
+          await postState();
+          vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} OAuth login completed.`);
+        } else if (message.type === 'removeProvider') {
+          await credentials.removeProvider(message.providerId);
+          provider.refreshModels();
+          await postState();
+        } else if (message.type === 'clearCredentials') {
+          await credentials.clearAll();
+          provider.refreshModels();
+          await postState();
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error);
+        await panel.webview.postMessage({ type: 'error', error: text });
+        vscode.window.showErrorMessage(text);
       }
-    } catch (error) {
-      const text = error instanceof Error ? error.message : String(error);
-      await panel.webview.postMessage({ type: 'error', error: text });
-      vscode.window.showErrorMessage(text);
-    }
-  }, undefined, context.subscriptions);
+    },
+    undefined,
+    context.subscriptions
+  );
 }
 
 interface ProviderOption {
@@ -107,37 +111,43 @@ function isConfigMessage(value: unknown): value is ConfigMessage {
     return true;
   }
 
-  return ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type)
-    && 'providerId' in value
-    && typeof value.providerId === 'string';
+  return (
+    ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type) &&
+    'providerId' in value &&
+    typeof value.providerId === 'string'
+  );
 }
 
 async function getPanelState(credentials: CredentialStore): Promise<PanelState> {
   const oauthProviders = new Map(getOAuthProviders().map((oauthProvider) => [oauthProvider.id, oauthProvider]));
-  const providers = getProviders().map((providerId) => {
-    const models = getModels(providerId as KnownProvider);
-    return {
-      id: providerId,
-      label: getProviderDisplayName(providerId),
-      modelCount: models.length,
-      sampleModels: models.slice(0, 6).map((model) => model.name),
-      oauthName: oauthProviders.get(providerId)?.name,
-      apiKeyEnvVars: getProviderApiKeyEnvVars(providerId),
-      envHints: getProviderEnvHints(providerId)
-    };
-  }).sort((a, b) => a.label.localeCompare(b.label));
+  const providers = getProviders()
+    .map((providerId) => {
+      const models = getModels(providerId as KnownProvider);
+      return {
+        id: providerId,
+        label: getProviderDisplayName(providerId),
+        modelCount: models.length,
+        sampleModels: models.slice(0, 6).map((model) => model.name),
+        oauthName: oauthProviders.get(providerId)?.name,
+        apiKeyEnvVars: getProviderApiKeyEnvVars(providerId),
+        envHints: getProviderEnvHints(providerId)
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
 
-  const configured = (await credentials.listProviderCredentials()).map((summary) => {
-    const models = getModels(summary.providerId as KnownProvider);
-    return {
-      id: summary.providerId,
-      label: getProviderDisplayName(summary.providerId),
-      authType: summary.type,
-      hasKey: summary.hasKey,
-      envKeys: summary.envKeys,
-      modelCount: models.length
-    };
-  }).sort((a, b) => a.label.localeCompare(b.label));
+  const configured = (await credentials.listProviderCredentials())
+    .map((summary) => {
+      const models = getModels(summary.providerId as KnownProvider);
+      return {
+        id: summary.providerId,
+        label: getProviderDisplayName(summary.providerId),
+        authType: summary.type,
+        hasKey: summary.hasKey,
+        envKeys: summary.envKeys,
+        modelCount: models.length
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   return {
     providers,

@@ -4,11 +4,7 @@ import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
 import { openConfigPanel } from './configPanel.js';
 import { CredentialStore } from './credentials.js';
 import { PiLanguageModelProvider } from './provider.js';
-import {
-  getProviderApiKeyEnvVars,
-  getProviderDisplayName,
-  getProviderEnvHints
-} from './providerMetadata.js';
+import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata.js';
 
 const VENDOR_ID = 'pi-router';
 
