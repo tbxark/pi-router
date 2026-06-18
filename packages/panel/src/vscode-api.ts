@@ -1,4 +1,4 @@
-import type { ExtensionMessage, WebviewMessage } from './types/messages';
+import type { ExtensionMessage, WebviewMessage } from '@pi-router/messages';
 
 /**
  * Thin wrapper around the VS Code webview API.

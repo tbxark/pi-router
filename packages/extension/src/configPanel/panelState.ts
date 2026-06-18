@@ -9,43 +9,9 @@ import {
   type ModelThinkingLevel
 } from '@earendil-works/pi-ai';
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
+import type { PanelState, ReasoningModelInfo } from '@pi-router/messages';
 import { CredentialStore } from '../credentials';
 import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from '../shared/providerMetadata';
-
-interface ProviderOption {
-  id: string;
-  label: string;
-  modelCount: number;
-  sampleModels: string[];
-  oauthName?: string;
-  apiKeyEnvVars: string[];
-  envHints: string[];
-}
-
-interface ReasoningModelInfo {
-  id: string;
-  name: string;
-  // Supported thinking levels excluding `off`, in pi-ai's canonical order.
-  supportedLevels: string[];
-  // The currently effective level: `off` or one of supportedLevels. Defaults to `medium`.
-  configuredLevel: string;
-}
-
-interface ConfiguredProvider {
-  id: string;
-  label: string;
-  authType: 'api_key' | 'oauth';
-  hasKey: boolean;
-  envKeys: string[];
-  modelCount: number;
-  reasoningModels: ReasoningModelInfo[];
-}
-
-export interface PanelState {
-  providers: ProviderOption[];
-  configured: ConfiguredProvider[];
-  oauthProviderIds: string[];
-}
 
 export async function getPanelState(credentials: CredentialStore): Promise<PanelState> {
   const oauthProviders = new Map(getOAuthProviders().map((oauthProvider) => [oauthProvider.id, oauthProvider]));

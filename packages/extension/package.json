@@ -55,7 +55,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "build": "pnpm run compile",
-    "copy:webview": "mkdir -p out/webview && cp -R ../config-panel/dist/* out/webview/",
+    "copy:webview": "mkdir -p out/webview && cp -R ../panel/dist/* out/webview/",
     "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --sourcemap --outfile=out/extension.js",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -68,6 +68,7 @@
     "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix"
   },
   "dependencies": {
+    "@pi-router/messages": "workspace:*",
     "@earendil-works/pi-ai": "0.79.6"
   },
   "devDependencies": {

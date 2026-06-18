@@ -8,5 +8,6 @@
     "jsxImportSource": "vue"
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules"],
+  "references": [{ "path": "../messages" }]
 }

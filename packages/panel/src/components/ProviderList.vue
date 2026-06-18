@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { postMessage } from '../vscode-api';
-import type { ConfiguredProvider, PanelState } from '../types/messages';
+import type { ConfiguredProvider, PanelState } from '@pi-router/messages';
 
 const props = defineProps<{
   state: PanelState;

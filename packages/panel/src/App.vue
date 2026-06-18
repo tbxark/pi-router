@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { onMessage, postMessage } from './vscode-api';
 import ProviderForm from './components/ProviderForm.vue';
 import ProviderList from './components/ProviderList.vue';
-import type { PanelState } from './types/messages';
+import type { PanelState } from '@pi-router/messages';
 
 const state = ref<PanelState>({
   providers: [],

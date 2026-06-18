@@ -11,17 +11,17 @@ Pi Router is a VS Code extension that exposes the models supported by `@earendil
 pnpm workspace with two packages under `packages/`:
 
 - **`packages/extension`** (`pi-router`) — the VS Code extension itself (TypeScript, Node target). This is where almost all logic lives.
-- **`packages/config-panel`** (`@pi-router/config-panel`) — a Vue 3 + Vite webview UI for the provider management panel. Built separately, then its `dist/` is copied into the extension's `out/webview/`.
+- **`packages/panel`** (`@pi-router/panel`) — a Vue 3 + Vite webview UI for the provider management panel. Built separately, then its `dist/` is copied into the extension's `out/webview/`.
 
-The two packages communicate only via `postMessage` over the VS Code webview bridge; there is no shared TypeScript import between them. The message contract is duplicated: `ConfigMessage`/`PanelState` in [configPanel.ts](packages/extension/src/configPanel.ts) on the extension side, and `WebviewMessage`/`ExtensionMessage` in [packages/config-panel/src/types/messages.ts](packages/config-panel/src/types/messages.ts) on the webview side. Keep both in sync when adding messages.
+The extension and panel communicate only via `postMessage` over the VS Code webview bridge. Shared message contracts live in [packages/messages/src/index.ts](packages/messages/src/index.ts).
 
 ## Commands
 
 All commands run from the repo root unless noted. `pnpm run -r <script>` fans out to both packages.
 
 - `pnpm install` — install (requires pnpm 11.7.0; `corepack enable` if missing)
-- `pnpm run compile` — `tsc` typecheck/emit across both packages (config-panel uses `vue-tsc`)
-- `pnpm run build` — build config-panel then the extension
+- `pnpm run compile` — typecheck/emit across workspace packages (panel uses `vue-tsc`)
+- `pnpm run build` — build messages, panel, then the extension
 - `pnpm run bundle` — esbuild the extension entry into `out/extension.js`
 - `pnpm run lint` / `pnpm run lint:fix` — ESLint (lint:fix also runs `oxlint --fix`)
 - `pnpm run format` / `pnpm run format:check` — oxfmt
@@ -31,7 +31,7 @@ All commands run from the repo root unless noted. `pnpm run -r <script>` fans ou
 
 Run a single test file (from `packages/extension`): `pnpm vitest run src/conversion.test.ts`. Filter by name: `pnpm vitest run -t "<pattern>"`.
 
-To debug the extension live, use the **Run Extension** launch config (F5). Its `preLaunchTask` builds the config-panel, copies the webview, and bundles before launching an Extension Host.
+To debug the extension live, use the **Run Extension** launch config (F5). Its `preLaunchTask` builds the panel, copies the webview, and bundles before launching an Extension Host.
 
 ## Testing
 

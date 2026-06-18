@@ -1,0 +1,30 @@
+{
+  "name": "@pi-router/messages",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "compile": "tsc -p ./",
+    "build": "pnpm run compile",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.9"
+  }
+}

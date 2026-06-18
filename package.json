@@ -7,10 +7,10 @@
     "url": "https://github.com/tbxark/pi-router"
   },
   "scripts": {
-    "build": "pnpm --filter @pi-router/config-panel run build && pnpm --filter pi-router run build",
-    "build:config-panel": "pnpm --filter @pi-router/config-panel run build",
-    "build:extension": "pnpm --filter pi-router run build",
-    "bundle": "pnpm --filter pi-router run bundle",
+    "build": "pnpm --filter @pi-router/messages run build && pnpm --filter @pi-router/panel run build && pnpm --filter pi-router run build",
+    "build:panel": "pnpm --filter @pi-router/messages run build && pnpm --filter @pi-router/panel run build",
+    "build:extension": "pnpm --filter @pi-router/messages run build && pnpm --filter pi-router run build",
+    "bundle": "pnpm --filter @pi-router/messages run build && pnpm --filter pi-router run bundle",
     "compile": "pnpm run -r compile",
     "format": "pnpm run -r format",
     "format:check": "pnpm run -r format:check",

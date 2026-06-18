@@ -6,9 +6,9 @@ import { WebviewOAuthBridge } from '../oauth/webviewCallbacks';
 import { confirmDangerousAction } from '../shared/dialogs';
 import { getProviderDisplayName } from '../shared/providerMetadata';
 import { getHtml } from './html';
-import { isConfigMessage } from './messages';
 import { getPanelState } from './panelState';
 import { normalizeReasoningLevel, parseEnvText } from './parsing';
+import { isWebviewMessage, type ExtensionMessage } from '@pi-router/messages';
 
 export function openConfigPanel(
   context: vscode.ExtensionContext,
@@ -33,7 +33,8 @@ export function openConfigPanel(
   panel.onDidDispose(() => vscode.Disposable.from(...disposables).dispose());
 
   async function postState(): Promise<void> {
-    await panel.webview.postMessage({ type: 'state', state: await getPanelState(credentials) });
+    const stateMessage: ExtensionMessage = { type: 'state', state: await getPanelState(credentials) };
+    await panel.webview.postMessage(stateMessage);
   }
 
   // OAuth-in-webview state: bridges async pi-ai callbacks → webview round-trips.
@@ -42,7 +43,7 @@ export function openConfigPanel(
   disposables.push(
     panel.webview.onDidReceiveMessage(async (message: unknown) => {
       try {
-        if (!isConfigMessage(message)) {
+        if (!isWebviewMessage(message)) {
           return;
         }
 
@@ -54,8 +55,8 @@ export function openConfigPanel(
           case 'saveApiKey':
             await credentials.setProviderApiKey(
               message.providerId,
-              String(message.apiKey ?? ''),
-              parseEnvText(String(message.envText ?? ''))
+              message.apiKey,
+              parseEnvText(message.envText)
             );
             provider.refreshModels();
             await postState();
@@ -68,7 +69,7 @@ export function openConfigPanel(
             );
             provider.refreshModels();
             await postState();
-            void panel.webview.postMessage({ type: 'oauthDone', providerId: message.providerId });
+            void panel.webview.postMessage({ type: 'oauthDone', providerId: message.providerId } satisfies ExtensionMessage);
             break;
 
           case 'oauthPromptResponse':
@@ -129,7 +130,7 @@ export function openConfigPanel(
         }
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error);
-        await panel.webview.postMessage({ type: 'error', error: text });
+        await panel.webview.postMessage({ type: 'error', error: text } satisfies ExtensionMessage);
       }
     }, undefined)
   );

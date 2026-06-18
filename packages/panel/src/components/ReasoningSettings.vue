@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { postMessage } from '../vscode-api';
-import type { ConfiguredProvider } from '../types/messages';
+import type { ConfiguredProvider } from '@pi-router/messages';
 
 const props = defineProps<{
   provider: ConfiguredProvider;

@@ -3,7 +3,8 @@
   "compilerOptions": {},
   "include": [],
   "references": [
+    { "path": "./packages/messages" },
     { "path": "./packages/extension" },
-    { "path": "./packages/config-panel" }
+    { "path": "./packages/panel" }
   ]
 }

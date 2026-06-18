@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { type OAuthLoginCallbacks } from '@earendil-works/pi-ai/oauth';
+import type { ExtensionMessage } from '@pi-router/messages';
 
 // OAuth login UX bridged across the webview boundary. pi-ai's async callbacks are
 // translated into `postMessage` round-trips: prompt/select/manual-code callbacks
@@ -23,7 +24,7 @@ export class WebviewOAuthBridge {
           providerId,
           url: info.url,
           instructions: info.instructions
-        });
+        } satisfies ExtensionMessage);
         void vscode.env.openExternal(vscode.Uri.parse(info.url));
       },
       onDeviceCode: (info: { userCode: string; verificationUri: string }) => {
@@ -32,7 +33,7 @@ export class WebviewOAuthBridge {
           providerId,
           userCode: info.userCode,
           verificationUri: info.verificationUri
-        });
+        } satisfies ExtensionMessage);
       },
       onPrompt: async (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => {
         return this.waitForResponse(() => {
@@ -42,7 +43,7 @@ export class WebviewOAuthBridge {
             message: prompt.message,
             placeholder: prompt.placeholder,
             allowEmpty: prompt.allowEmpty
-          });
+          } satisfies ExtensionMessage);
         });
       },
       onSelect: async (prompt: { message: string; options: { id: string; label: string }[] }) => {
@@ -52,7 +53,7 @@ export class WebviewOAuthBridge {
             providerId,
             message: prompt.message,
             options: prompt.options
-          });
+          } satisfies ExtensionMessage);
         });
       },
       onManualCodeInput: async () => {
@@ -60,7 +61,7 @@ export class WebviewOAuthBridge {
           void this.webview.postMessage({
             type: 'oauthManualCodeInput',
             providerId
-          });
+          } satisfies ExtensionMessage);
         });
       },
       onProgress: (message: string) => {
@@ -68,7 +69,7 @@ export class WebviewOAuthBridge {
           type: 'oauthProgress',
           providerId,
           message
-        });
+        } satisfies ExtensionMessage);
       }
     };
   }

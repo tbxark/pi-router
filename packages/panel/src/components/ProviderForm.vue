@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { onMessage, postMessage } from '../vscode-api';
-import type { PanelState, ProviderOption, ExtensionMessage } from '../types/messages';
+import type { ExtensionMessage, PanelState, ProviderOption } from '@pi-router/messages';
 import ReasoningSettings from './ReasoningSettings.vue';
 
 const props = defineProps<{

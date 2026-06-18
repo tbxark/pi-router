@@ -167,3 +167,50 @@ export type ExtensionMessage =
   | OAuthManualCodeInputMessage
   | OAuthProgressMessage
   | OAuthDoneMessage;
+
+export function isWebviewMessage(value: unknown): value is WebviewMessage {
+  if (typeof value !== 'object' || value === null || !('type' in value)) {
+    return false;
+  }
+
+  const message = value as Record<string, unknown>;
+
+  switch (message.type) {
+    case 'ready':
+    case 'clearCredentials':
+      return true;
+
+    case 'saveApiKey':
+      return (
+        typeof message.providerId === 'string' &&
+        typeof message.apiKey === 'string' &&
+        typeof message.envText === 'string'
+      );
+
+    case 'loginOAuth':
+    case 'removeProvider':
+      return typeof message.providerId === 'string';
+
+    case 'saveModelReasoning':
+      return (
+        typeof message.providerId === 'string' &&
+        typeof message.modelId === 'string' &&
+        typeof message.level === 'string'
+      );
+
+    case 'oauthPromptResponse':
+    case 'oauthManualCodeResponse':
+      return typeof message.value === 'string';
+
+    case 'oauthSelectResponse':
+      return typeof message.id === 'string';
+
+    case 'oauthOpenUrl':
+      return typeof message.url === 'string';
+
+    default:
+      return false;
+  }
+}
+
+export const isConfigMessage = isWebviewMessage;
