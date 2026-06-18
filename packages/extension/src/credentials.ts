@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getEnvApiKey, type ProviderEnv } from '@earendil-works/pi-ai';
+import { getEnvApiKey, type ModelThinkingLevel, type ProviderEnv } from '@earendil-works/pi-ai';
 import {
   getOAuthApiKey,
   getOAuthProvider,
@@ -21,6 +21,8 @@ interface StoredApiKeyCredential {
   type: 'api_key';
   key?: string;
   env?: ProviderEnv;
+  // Per-model reasoning level overrides, keyed by model id. `"off"` disables thinking.
+  reasoning?: Record<string, ModelThinkingLevel>;
   updatedAt: number;
 }
 
@@ -28,6 +30,8 @@ interface StoredOAuthCredential {
   type: 'oauth';
   credentials: OAuthCredentials;
   env?: ProviderEnv;
+  // Per-model reasoning level overrides, keyed by model id. `"off"` disables thinking.
+  reasoning?: Record<string, ModelThinkingLevel>;
   updatedAt: number;
 }
 
@@ -41,6 +45,7 @@ export interface ProviderCredentialSummary {
   type: StoredProviderCredential['type'];
   hasKey: boolean;
   envKeys: string[];
+  reasoning: Record<string, ModelThinkingLevel>;
   updatedAt: number;
 }
 
@@ -49,6 +54,7 @@ export interface ResolvedProviderCredentials {
   apiKey?: string;
   env: ProviderEnv;
   oauthCredentials?: OAuthCredentials;
+  reasoning?: Record<string, ModelThinkingLevel>;
 }
 
 export class CredentialStore {
@@ -64,6 +70,7 @@ export class CredentialStore {
         hasKey:
           credential.type === 'api_key' ? Boolean(credential.key || getEnvApiKey(providerId, credential.env)) : true,
         envKeys: Object.keys(credential.env ?? {}).sort(),
+        reasoning: credential.reasoning ?? {},
         updatedAt: credential.updatedAt
       }));
   }
@@ -84,6 +91,7 @@ export class CredentialStore {
       type: 'api_key',
       key: trimmedKey || undefined,
       env: normalizedEnv,
+      reasoning: store.providers[providerId]?.reasoning,
       updatedAt: Date.now()
     };
     await this.saveStore(store);
@@ -99,6 +107,29 @@ export class CredentialStore {
       type: 'oauth',
       credentials,
       env: normalizeEnv(env),
+      reasoning: store.providers[providerId]?.reasoning,
+      updatedAt: Date.now()
+    };
+    await this.saveStore(store);
+  }
+
+  async setModelReasoning(providerId: string, modelId: string, level: ModelThinkingLevel | null): Promise<void> {
+    const store = await this.loadStore();
+    const credential = store.providers[providerId];
+    if (!credential) {
+      return;
+    }
+
+    const reasoning = { ...(credential.reasoning ?? {}) };
+    if (level === null) {
+      delete reasoning[modelId];
+    } else {
+      reasoning[modelId] = level;
+    }
+
+    store.providers[providerId] = {
+      ...credential,
+      reasoning: Object.keys(reasoning).length > 0 ? reasoning : undefined,
       updatedAt: Date.now()
     };
     await this.saveStore(store);
@@ -137,7 +168,8 @@ export class CredentialStore {
       return {
         type: credential.type,
         apiKey: credential.key || getEnvApiKey(providerId, env),
-        env
+        env,
+        reasoning: credential.reasoning
       };
     }
 
@@ -157,7 +189,8 @@ export class CredentialStore {
       type: credential.type,
       apiKey: result.apiKey,
       env,
-      oauthCredentials: result.newCredentials
+      oauthCredentials: result.newCredentials,
+      reasoning: credential.reasoning
     };
   }
 

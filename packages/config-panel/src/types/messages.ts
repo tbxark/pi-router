@@ -15,6 +15,15 @@ export interface ProviderOption {
   envHints: string[];
 }
 
+export interface ReasoningModelInfo {
+  id: string;
+  name: string;
+  /** Supported thinking levels excluding `off`, in pi-ai's canonical order. */
+  supportedLevels: string[];
+  /** The currently effective level: `off` or one of supportedLevels. Defaults to `medium`. */
+  configuredLevel: string;
+}
+
 export interface ConfiguredProvider {
   id: string;
   label: string;
@@ -22,6 +31,7 @@ export interface ConfiguredProvider {
   hasKey: boolean;
   envKeys: string[];
   modelCount: number;
+  reasoningModels: ReasoningModelInfo[];
 }
 
 // ── Webview → Extension ──────────────────────────────────────────────
@@ -51,6 +61,13 @@ export interface ClearCredentialsMessage {
   type: 'clearCredentials';
 }
 
+export interface SaveModelReasoningMessage {
+  type: 'saveModelReasoning';
+  providerId: string;
+  modelId: string;
+  level: string;
+}
+
 export interface OAuthPromptResponseMessage {
   type: 'oauthPromptResponse';
   value: string;
@@ -77,6 +94,7 @@ export type WebviewMessage =
   | LoginOAuthMessage
   | RemoveProviderMessage
   | ClearCredentialsMessage
+  | SaveModelReasoningMessage
   | OAuthPromptResponseMessage
   | OAuthSelectResponseMessage
   | OAuthManualCodeResponseMessage

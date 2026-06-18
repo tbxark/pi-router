@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { onMessage, postMessage } from '../vscode-api';
 import type { PanelState, ProviderOption, ExtensionMessage } from '../types/messages';
+import ReasoningSettings from './ReasoningSettings.vue';
 
 const props = defineProps<{
   state: PanelState;
@@ -167,28 +168,9 @@ const modeDescription = computed(() =>
     : 'Choose a provider and add credentials before it becomes available to Pi Router.'
 );
 
-const primaryButtonText = computed(() => {
-  if (supportsOAuth.value) {
-    if (oauthStep.value.type === 'done') {
-      return 'Done';
-    }
-    return isEditing.value ? 'Reauthorize Provider' : 'Authorize Provider';
-  }
+const saveButtonText = computed(() => (isEditing.value ? 'Update Provider' : 'Add Provider'));
 
-  return isEditing.value ? 'Update Provider' : 'Add Provider';
-});
-
-const canUsePrimaryAction = computed(() => {
-  if (!currentProvider.value) {
-    return false;
-  }
-
-  if (supportsOAuth.value) {
-    return ['idle', 'error', 'done'].includes(oauthStep.value.type);
-  }
-
-  return Boolean(apiKey.value || envText.value);
-});
+const canSave = computed(() => Boolean(currentProvider.value && (apiKey.value || envText.value)));
 
 function onSave() {
   if (!currentProvider.value) return;
@@ -210,21 +192,6 @@ function onSave() {
   });
   apiKey.value = '';
   emit('close');
-}
-
-function onPrimaryAction() {
-  if (!currentProvider.value) return;
-
-  if (supportsOAuth.value) {
-    if (oauthStep.value.type === 'done') {
-      emit('close');
-      return;
-    }
-    onStartOAuth();
-    return;
-  }
-
-  onSave();
 }
 
 function onStartOAuth() {
@@ -359,13 +326,22 @@ function onKeydown(e: KeyboardEvent) {
         <!-- OAuth section -->
         <div v-if="supportsOAuth && currentProvider" class="oauth-section">
           <div v-if="oauthStep.type === 'idle'" class="oauth-idle">
-            <p class="oauth-hint">
-              Sign in with your {{ currentProvider.oauthName || currentProvider.label }} account to automatically obtain
-              credentials.
-            </p>
-            <button class="btn btn-oauth" @click="onStartOAuth">
-              {{ oauthDisplayName }}
-            </button>
+            <template v-if="isEditing">
+              <p class="oauth-hint oauth-hint--warn">
+                Reauthorizing replaces the existing OAuth credentials for
+                {{ currentProvider.oauthName || currentProvider.label }}. You'll be asked to confirm before continuing.
+              </p>
+              <button class="btn btn-danger" @click="onStartOAuth">Reauthorize Provider</button>
+            </template>
+            <template v-else>
+              <p class="oauth-hint">
+                Sign in with your {{ currentProvider.oauthName || currentProvider.label }} account to automatically
+                obtain credentials.
+              </p>
+              <button class="btn btn-oauth" @click="onStartOAuth">
+                {{ oauthDisplayName }}
+              </button>
+            </template>
           </div>
 
           <div v-else-if="oauthStep.type === 'authorizing'" class="oauth-status">
@@ -469,12 +445,19 @@ function onKeydown(e: KeyboardEvent) {
           <textarea id="envText" v-model="envText" spellcheck="false" :placeholder="envPlaceholder"></textarea>
           <p class="field-hint">One KEY=value per line. Lines starting with # are ignored.</p>
         </div>
+
+        <!-- Per-model reasoning settings (edit mode) -->
+        <ReasoningSettings
+          v-if="isEditing && editProvider && editProvider.reasoningModels.length"
+          :provider="editProvider"
+        />
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-secondary" @click="emit('close')">Cancel</button>
-        <button class="btn btn-primary" :disabled="!canUsePrimaryAction" @click="onPrimaryAction">
-          {{ primaryButtonText }}
+        <button v-if="supportsOAuth" class="btn btn-primary" @click="emit('close')">Done</button>
+        <button v-else class="btn btn-primary" :disabled="!canSave" @click="onSave">
+          {{ saveButtonText }}
         </button>
       </div>
     </div>
@@ -677,6 +660,18 @@ textarea {
   background: var(--vscode-button-hoverBackground);
 }
 
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+  justify-content: center;
+  width: 100%;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+}
+
 .btn-link {
   background: transparent;
   color: var(--vscode-textLink-foreground);
@@ -857,6 +852,10 @@ textarea {
   color: var(--vscode-descriptionForeground);
   font-size: 13px;
   margin: 0 0 12px;
+}
+
+.oauth-hint--warn {
+  color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 .oauth-idle {

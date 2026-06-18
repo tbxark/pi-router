@@ -1,7 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
-import { getModels, getProviders, type KnownProvider, type ProviderEnv } from '@earendil-works/pi-ai';
+import {
+  clampThinkingLevel,
+  getModels,
+  getProviders,
+  getSupportedThinkingLevels,
+  type Api,
+  type KnownProvider,
+  type Model,
+  type ModelThinkingLevel,
+  type ProviderEnv
+} from '@earendil-works/pi-ai';
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
 import { CredentialStore } from './credentials';
 import { PiLanguageModelProvider } from './provider';
@@ -156,6 +166,16 @@ export function openConfigPanel(
             await postState();
             break;
 
+          case 'saveModelReasoning':
+            await credentials.setModelReasoning(
+              message.providerId,
+              message.modelId,
+              normalizeReasoningLevel(message.level)
+            );
+            provider.refreshModels();
+            await postState();
+            break;
+
           case 'clearCredentials':
             if (
               !(await confirmDangerousAction(
@@ -189,6 +209,15 @@ interface ProviderOption {
   envHints: string[];
 }
 
+interface ReasoningModelInfo {
+  id: string;
+  name: string;
+  // Supported thinking levels excluding `off`, in pi-ai's canonical order.
+  supportedLevels: string[];
+  // The currently effective level: `off` or one of supportedLevels. Defaults to `medium`.
+  configuredLevel: string;
+}
+
 interface ConfiguredProvider {
   id: string;
   label: string;
@@ -196,6 +225,7 @@ interface ConfiguredProvider {
   hasKey: boolean;
   envKeys: string[];
   modelCount: number;
+  reasoningModels: ReasoningModelInfo[];
 }
 
 interface PanelState {
@@ -209,6 +239,7 @@ type ConfigMessage =
   | { type: 'saveApiKey'; providerId: string; apiKey?: unknown; envText?: unknown }
   | { type: 'loginOAuth'; providerId: string }
   | { type: 'removeProvider'; providerId: string }
+  | { type: 'saveModelReasoning'; providerId: string; modelId: string; level: string }
   | { type: 'clearCredentials' }
   | { type: 'oauthPromptResponse'; value: string }
   | { type: 'oauthSelectResponse'; id: string }
@@ -243,7 +274,28 @@ function isConfigMessage(value: unknown): value is ConfigMessage {
     return true;
   }
 
+  if (
+    type === 'saveModelReasoning' &&
+    typeof message.providerId === 'string' &&
+    typeof message.modelId === 'string' &&
+    typeof message.level === 'string'
+  ) {
+    return true;
+  }
+
   return ['saveApiKey', 'loginOAuth', 'removeProvider'].includes(type) && typeof message.providerId === 'string';
+}
+
+const THINKING_LEVELS: readonly ModelThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+
+function isThinkingLevel(value: string): value is ModelThinkingLevel {
+  return (THINKING_LEVELS as readonly string[]).includes(value);
+}
+
+// Maps a level string from the webview to a stored value. Unknown values reset the
+// override (null) so the model falls back to the default `medium`.
+function normalizeReasoningLevel(level: string): ModelThinkingLevel | null {
+  return isThinkingLevel(level) ? level : null;
 }
 
 async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
@@ -277,7 +329,8 @@ async function getPanelState(credentials: CredentialStore): Promise<PanelState> 
         authType: summary.type,
         hasKey: summary.hasKey,
         envKeys: summary.envKeys,
-        modelCount: models.length
+        modelCount: models.length,
+        reasoningModels: buildReasoningModels(models as Model<Api>[], summary.reasoning)
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -287,6 +340,26 @@ async function getPanelState(credentials: CredentialStore): Promise<PanelState> 
     configured,
     oauthProviderIds: Array.from(oauthProviders.keys())
   };
+}
+
+function buildReasoningModels(
+  models: Model<Api>[],
+  reasoning: Record<string, ModelThinkingLevel>
+): ReasoningModelInfo[] {
+  return models
+    .filter((model) => model.reasoning)
+    .map((model) => {
+      const supportedLevels = getSupportedThinkingLevels(model).filter((level) => level !== 'off');
+      const stored = reasoning[model.id];
+      const configuredLevel = stored ?? clampThinkingLevel(model, 'medium');
+      return {
+        id: model.id,
+        name: model.name,
+        supportedLevels,
+        configuredLevel
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function parseEnvText(text: string): ProviderEnv {

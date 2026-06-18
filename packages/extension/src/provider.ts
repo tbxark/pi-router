@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import {
+  clampThinkingLevel,
   getApiProvider,
   getModels,
   type Api,
@@ -7,6 +8,8 @@ import {
   type AssistantMessageEvent,
   type KnownProvider,
   type Model,
+  type ModelThinkingLevel,
+  type ThinkingLevel,
   type ToolCall
 } from '@earendil-works/pi-ai';
 import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
@@ -51,10 +54,14 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
         detail: `${getProviderDisplayName(model.provider)} via pi-ai`,
         tooltip: `${model.provider}/${model.id}`,
         version: '1.0.0',
-        maxInputTokens: model.contextWindow,
+        // Reserve the output budget so input is not allowed to fill the whole window.
+        maxInputTokens: Math.max(1, model.contextWindow - model.maxTokens),
         maxOutputTokens: model.maxTokens,
         capabilities: {
           imageInput: model.input.includes('image'),
+          // pi-ai's Model has no per-model tool-calling flag, so we advertise tool
+          // support unconditionally. Models that cannot call tools will surface that
+          // as an API error at request time rather than being filtered here.
           toolCalling: true
         }
       }))
@@ -87,7 +94,8 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const model = applyOAuthModelOverrides(resolved.model, credentials.oauthCredentials);
     const apiProvider = getApiProvider(model.api);
     if (!apiProvider) {
-      throw new Error(`No pi-ai API provider registered for ${model.api}.`);
+      progress.report(new vscode.LanguageModelTextPart(`No pi-ai API provider registered for ${model.api}.`));
+      return;
     }
 
     const abort = new AbortController();
@@ -100,10 +108,15 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
         env: credentials.env,
         signal: abort.signal,
         sessionId: `${model.provider}-vscode-pi-chat`
-      } as Parameters<typeof apiProvider.streamSimple>[2] & { toolChoice?: string };
+      } as Parameters<typeof apiProvider.streamSimple>[2] & { toolChoice?: string; reasoning?: string };
 
       if (_options.tools?.length) {
         requestOptions.toolChoice = toPiToolChoice(model.api, _options.toolMode);
+      }
+
+      const reasoning = resolveReasoningLevel(model, credentials.reasoning?.[resolved.model.id]);
+      if (reasoning) {
+        requestOptions.reasoning = reasoning;
       }
 
       const stream = apiProvider.streamSimple(model, toPiContext(messages, _options), requestOptions);
@@ -116,6 +129,13 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
 
         this.reportPiEvent(event, convertEvent, progress);
       }
+    } catch (error) {
+      // A cancellation surfaces as an aborted request from some providers; swallow it
+      // so cancelling a chat does not show a spurious error to the user.
+      if (token.isCancellationRequested || abort.signal.aborted) {
+        return;
+      }
+      throw error;
     } finally {
       disposable.dispose();
     }
@@ -141,8 +161,10 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
   }
 
   private async getConfiguredModels(): Promise<Model<Api>[]> {
-    const providerIds = await this.credentials.getConfiguredProviderIds();
-    return providerIds.flatMap((providerId) => getModels(providerId as KnownProvider) as Model<Api>[]);
+    const summaries = await this.credentials.listProviderCredentials();
+    return summaries
+      .filter((summary) => summary.hasKey)
+      .flatMap((summary) => getModels(summary.providerId as KnownProvider) as Model<Api>[]);
   }
 
   private logRequest(
@@ -228,6 +250,29 @@ function decodeLanguageModelId(id: string): { providerId: string; modelId: strin
     providerId: id.slice(0, separator),
     modelId: id.slice(separator + 1)
   };
+}
+
+/**
+ * Resolves the effective reasoning level for a request. Reasoning-capable models
+ * default to `medium` unless the user configured an explicit level (including `off`).
+ * The level is clamped to what the model actually supports. Returns undefined when
+ * thinking should be omitted (model lacks reasoning, or level resolves to `off`).
+ */
+function resolveReasoningLevel(
+  model: Model<Api>,
+  configured: ModelThinkingLevel | undefined
+): ThinkingLevel | undefined {
+  if (!model.reasoning) {
+    return undefined;
+  }
+
+  const desired: ModelThinkingLevel = configured ?? 'medium';
+  if (desired === 'off') {
+    return undefined;
+  }
+
+  const clamped = clampThinkingLevel(model, desired);
+  return clamped === 'off' ? undefined : clamped;
 }
 
 function applyOAuthModelOverrides(model: Model<Api>, credentials: OAuthCredentials | undefined): Model<Api> {
