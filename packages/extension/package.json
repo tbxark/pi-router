@@ -1,0 +1,86 @@
+{
+  "name": "pi-router",
+  "displayName": "Pi Router",
+  "description": "Provides custom VS Code chat models through Pi.",
+  "version": "0.0.3",
+  "publisher": "tbxark",
+  "type": "module",
+  "main": "./out/extension.js",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tbxark/pi-router"
+  },
+  "files": [
+    "out/extension.js",
+    "out/webview/**",
+    "assets/icon.png",
+    "assets/icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "pi-router",
+        "displayName": "Pi Router"
+      }
+    ],
+    "commands": [
+      {
+        "command": "piRouter.configure",
+        "title": "Pi Router: Manage Providers"
+      },
+      {
+        "command": "piRouter.addProviderApiKey",
+        "title": "Pi Router: Add Provider API Key"
+      },
+      {
+        "command": "piRouter.loginOAuthProvider",
+        "title": "Pi Router: Sign in Provider with OAuth"
+      },
+      {
+        "command": "piRouter.clearCredentials",
+        "title": "Pi Router: Clear Credentials"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "build": "pnpm run compile",
+    "copy:webview": "mkdir -p out/webview && cp -R ../config-panel/dist/* out/webview/",
+    "bundle": "pnpm dlx esbuild src/extension.ts --bundle --platform=node --format=esm --target=node22 --external:vscode --outfile=out/extension.js",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "eslint",
+    "lint:fix": "oxlint --fix && eslint --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "watch": "tsc -watch -p ./",
+    "package:vsix": "pnpm run copy:webview && pnpm run bundle && pnpm dlx @vscode/vsce package --no-dependencies --out pi-router.vsix",
+    "install:vsix": "pnpm run package:vsix && code --install-extension pi-router.vsix"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.79.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22",
+    "@types/vscode": "1.125.0",
+    "eslint": "^9.13.0",
+    "eslint-plugin-oxlint": "^1.70.0",
+    "oxfmt": "^0.55.0",
+    "oxlint": "^1.70.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0",
+    "vitest": "^4.1.9"
+  }
+}

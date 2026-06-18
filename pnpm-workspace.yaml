@@ -1,5 +1,9 @@
+packages:
+  - 'packages/*'
+
 allowBuilds:
   '@google/genai': false
+  esbuild: true
   protobufjs: false
 minimumReleaseAgeExclude:
   - '@types/vscode@1.125.0'

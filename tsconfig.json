@@ -1,15 +1,9 @@
 {
-  "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "target": "ES2024",
-    "lib": ["ES2024", "DOM"],
-    "rootDir": "src",
-    "outDir": "out",
-    "strict": true,
-    "sourceMap": true,
-    "skipLibCheck": true
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["examples", "out", "node_modules", "src/**/*.test.ts", "src/test-utils"]
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {},
+  "include": [],
+  "references": [
+    { "path": "./packages/extension" },
+    { "path": "./packages/config-panel" }
+  ]
 }
