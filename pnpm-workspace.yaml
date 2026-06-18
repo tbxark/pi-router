@@ -1,3 +1,5 @@
 allowBuilds:
   '@google/genai': false
   protobufjs: false
+minimumReleaseAgeExclude:
+  - '@types/vscode@1.125.0'

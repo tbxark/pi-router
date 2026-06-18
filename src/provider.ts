@@ -5,6 +5,7 @@ import {
   getModels,
   type Api,
   type AssistantMessage,
+  type AssistantMessageEvent,
   type Context,
   type ImageContent,
   type KnownProvider,
@@ -17,12 +18,16 @@ import {
   type TSchema
 } from '@earendil-works/pi-ai';
 import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
-import { CredentialStore } from './credentials.js';
-import { getProviderDisplayName } from './providerMetadata.js';
+import { CredentialStore } from './credentials';
+import { getProviderDisplayName } from './providerMetadata';
 
 interface DataPartLike {
   data: Uint8Array;
   mimeType: string;
+}
+
+interface PromptTsxPartLike {
+  value: unknown;
 }
 
 interface ResolvedLanguageModel {
@@ -44,6 +49,8 @@ const ZERO_USAGE = {
     total: 0
   }
 };
+
+const EMPTY_OBJECT_SCHEMA = { type: 'object', properties: {} } satisfies TSchema;
 
 export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
@@ -132,20 +139,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
           break;
         }
 
-        if (event.type === 'text_delta') {
-          progress.report(new vscode.LanguageModelTextPart(event.delta));
-        } else if (event.type === 'toolcall_end') {
-          this.logToolCall(event.toolCall);
-          progress.report(
-            new vscode.LanguageModelToolCallPart(
-              event.toolCall.id,
-              event.toolCall.name,
-              event.toolCall.arguments
-            )
-          );
-        } else if (event.type === 'error') {
-          throw new Error(event.error.errorMessage ?? 'pi-ai request failed.');
-        }
+        this.reportPiEvent(event, progress);
       }
     } finally {
       disposable.dispose();
@@ -203,8 +197,46 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
   }
 
   private logToolCall(toolCall: ToolCall): void {
+    this.output?.appendLine(`[${new Date().toISOString()}] tool_call id=${toolCall.id} name=${toolCall.name}`);
+  }
+
+  private reportPiEvent(
+    event: AssistantMessageEvent,
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>
+  ): void {
+    if (event.type === 'text_delta') {
+      progress.report(new vscode.LanguageModelTextPart(event.delta));
+    } else if (event.type === 'thinking_delta') {
+      progress.report(toThinkingDataPart(event.delta, event.contentIndex));
+    } else if (event.type === 'toolcall_end') {
+      this.logToolCall(event.toolCall);
+      progress.report(
+        new vscode.LanguageModelToolCallPart(event.toolCall.id, event.toolCall.name, event.toolCall.arguments)
+      );
+    } else if (event.type === 'done') {
+      this.logFinalMessage(event.message);
+    } else if (event.type === 'error') {
+      this.logFinalMessage(event.error);
+      throw new Error(event.error.errorMessage ?? 'pi-ai request failed.');
+    }
+  }
+
+  private logFinalMessage(message: AssistantMessage): void {
     this.output?.appendLine(
-      `[${new Date().toISOString()}] tool_call id=${toolCall.id} name=${toolCall.name}`
+      [
+        `[${new Date().toISOString()}] response`,
+        `model=${message.provider}/${message.model}`,
+        `api=${message.api}`,
+        `stopReason=${message.stopReason}`,
+        `input=${message.usage.input}`,
+        `output=${message.usage.output}`,
+        `total=${message.usage.totalTokens}`,
+        `cost=${message.usage.cost.total}`,
+        message.responseId ? `responseId=${message.responseId}` : '',
+        message.responseModel ? `responseModel=${message.responseModel}` : ''
+      ]
+        .filter(Boolean)
+        .join(' ')
     );
   }
 }
@@ -288,10 +320,14 @@ function toAssistantContent(
         name: part.name,
         arguments: part.input as ToolCall['arguments']
       });
+    } else if (isDataPartLike(part)) {
+      content.push({ type: 'text', text: dataPartToText(part) });
+    } else {
+      content.push({ type: 'text', text: unknownPartToText(part) });
     }
   }
 
-  return content;
+  return content.filter((block) => block.type !== 'text' || block.text.length > 0);
 }
 
 function toUserMessages(
@@ -317,17 +353,13 @@ function toUserMessages(
   for (const part of parts) {
     if (part instanceof vscode.LanguageModelTextPart) {
       pendingContent.push({ type: 'text', text: part.value });
-    } else if (isDataPartLike(part) && part.mimeType.startsWith('image/')) {
-      pendingContent.push({
-        type: 'image',
-        data: Buffer.from(part.data).toString('base64'),
-        mimeType: part.mimeType
-      });
-    } else if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
-      pendingContent.push({ type: 'text', text: new TextDecoder().decode(part.data) });
+    } else if (isDataPartLike(part)) {
+      pendingContent.push(dataPartToContent(part));
     } else if (isToolResultPartLike(part)) {
       flushUserMessage();
       messages.push(toToolResultMessage(part, toolNamesByCallId));
+    } else {
+      pendingContent.push({ type: 'text', text: unknownPartToText(part) });
     }
   }
 
@@ -357,18 +389,17 @@ function toToolResultContent(
   for (const part of parts) {
     if (part instanceof vscode.LanguageModelTextPart) {
       content.push({ type: 'text', text: part.value });
-    } else if (isDataPartLike(part) && part.mimeType.startsWith('image/')) {
-      content.push({
-        type: 'image',
-        data: Buffer.from(part.data).toString('base64'),
-        mimeType: part.mimeType
-      });
-    } else if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
-      content.push({ type: 'text', text: new TextDecoder().decode(part.data) });
+    } else if (isDataPartLike(part)) {
+      content.push(dataPartToContent(part));
+    } else if (isPromptTsxPartLike(part)) {
+      content.push({ type: 'text', text: stableStringify(part.value) });
+    } else {
+      content.push({ type: 'text', text: unknownPartToText(part) });
     }
   }
 
-  return content.length > 0 ? content : [{ type: 'text', text: '' }];
+  const nonEmptyContent = content.filter((block) => block.type !== 'text' || block.text.length > 0);
+  return nonEmptyContent.length > 0 ? nonEmptyContent : [{ type: 'text', text: '' }];
 }
 
 function toPiTools(tools: readonly vscode.LanguageModelChatTool[] | undefined): Tool[] | undefined {
@@ -379,7 +410,7 @@ function toPiTools(tools: readonly vscode.LanguageModelChatTool[] | undefined): 
   return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
-    parameters: (tool.inputSchema ?? { type: 'object', properties: {} }) as TSchema
+    parameters: normalizeToolSchema(tool.inputSchema)
   }));
 }
 
@@ -408,6 +439,70 @@ function normalizeUserContent(blocks: Array<TextContent | ImageContent>): string
   return blocks.map((block) => (block.type === 'text' ? block.text : '')).join('');
 }
 
+function dataPartToContent(part: DataPartLike): TextContent | ImageContent {
+  if (part.mimeType.startsWith('image/')) {
+    return {
+      type: 'image',
+      data: Buffer.from(part.data).toString('base64'),
+      mimeType: part.mimeType
+    };
+  }
+
+  return { type: 'text', text: dataPartToText(part) };
+}
+
+function dataPartToText(part: DataPartLike): string {
+  const text = new TextDecoder().decode(part.data);
+  if (part.mimeType.startsWith('text/')) {
+    return text;
+  }
+
+  if (part.mimeType === 'application/json' || part.mimeType.endsWith('+json')) {
+    return text;
+  }
+
+  return `[${part.mimeType} data, ${part.data.byteLength} bytes, base64:${Buffer.from(part.data).toString('base64')}]`;
+}
+
+function toThinkingDataPart(delta: string, contentIndex: number): vscode.LanguageModelResponsePart {
+  const payload = {
+    type: 'thinking_delta',
+    contentIndex,
+    delta
+  };
+  const dataPart = (
+    vscode as unknown as {
+      LanguageModelDataPart?: {
+        json(value: unknown, mime?: string): vscode.LanguageModelResponsePart;
+      };
+    }
+  ).LanguageModelDataPart;
+
+  return dataPart?.json(payload, 'application/vnd.pi.thinking+json') ?? new vscode.LanguageModelTextPart(delta);
+}
+
+function normalizeToolSchema(schema: object | undefined): TSchema {
+  if (!schema || typeof schema !== 'object') {
+    return EMPTY_OBJECT_SCHEMA;
+  }
+
+  if (
+    'type' in schema ||
+    'properties' in schema ||
+    '$ref' in schema ||
+    'anyOf' in schema ||
+    'oneOf' in schema ||
+    'allOf' in schema
+  ) {
+    return schema as TSchema;
+  }
+
+  return {
+    ...EMPTY_OBJECT_SCHEMA,
+    properties: schema as Record<string, unknown>
+  } as TSchema;
+}
+
 function toolModeLabel(toolMode: vscode.LanguageModelChatToolMode): string {
   switch (toolMode) {
     case vscode.LanguageModelChatToolMode.Auto:
@@ -426,13 +521,33 @@ function textFromParts(parts: ReadonlyArray<vscode.LanguageModelInputPart | unkn
         return part.value;
       }
 
-      if (isDataPartLike(part) && part.mimeType.startsWith('text/')) {
-        return new TextDecoder().decode(part.data);
+      if (isDataPartLike(part)) {
+        return dataPartToText(part);
       }
 
-      return '';
+      return unknownPartToText(part);
     })
     .join('');
+}
+
+function unknownPartToText(part: unknown): string {
+  if (part === undefined || part === null) {
+    return '';
+  }
+
+  if (typeof part === 'string') {
+    return part;
+  }
+
+  return stableStringify(part);
+}
+
+function stableStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function isDataPartLike(part: unknown): part is DataPartLike {
@@ -452,4 +567,8 @@ function isToolCallPartLike(part: unknown): part is vscode.LanguageModelToolCall
 
 function isToolResultPartLike(part: unknown): part is vscode.LanguageModelToolResultPart {
   return part instanceof vscode.LanguageModelToolResultPart;
+}
+
+function isPromptTsxPartLike(part: unknown): part is PromptTsxPartLike {
+  return part instanceof vscode.LanguageModelPromptTsxPart;
 }

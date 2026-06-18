@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { getModels, getProviders, type KnownProvider, type ProviderEnv } from '@earendil-works/pi-ai';
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
-import { CredentialStore } from './credentials.js';
-import { PiLanguageModelProvider } from './provider.js';
-import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata.js';
+import { CredentialStore } from './credentials';
+import { PiLanguageModelProvider } from './provider';
+import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata';
 
 export function openConfigPanel(
   context: vscode.ExtensionContext,
@@ -21,13 +21,15 @@ export function openConfigPanel(
 
   const nonce = randomUUID();
   panel.webview.html = getHtml(context, nonce);
+  const disposables: vscode.Disposable[] = [];
+  panel.onDidDispose(() => vscode.Disposable.from(...disposables).dispose());
 
   async function postState(): Promise<void> {
     await panel.webview.postMessage({ type: 'state', state: await getPanelState(credentials) });
   }
 
-  panel.webview.onDidReceiveMessage(
-    async (message: unknown) => {
+  disposables.push(
+    panel.webview.onDidReceiveMessage(async (message: unknown) => {
       try {
         if (!isConfigMessage(message)) {
           return;
@@ -50,10 +52,21 @@ export function openConfigPanel(
           await postState();
           vscode.window.showInformationMessage(`${getProviderDisplayName(message.providerId)} OAuth login completed.`);
         } else if (message.type === 'removeProvider') {
+          const confirmed = await confirmDangerousAction(
+            `Remove ${getProviderDisplayName(message.providerId)} credentials?`,
+            'Remove'
+          );
+          if (!confirmed) {
+            return;
+          }
           await credentials.removeProvider(message.providerId);
           provider.refreshModels();
           await postState();
         } else if (message.type === 'clearCredentials') {
+          const confirmed = await confirmDangerousAction('Clear all Pi Router credentials?', 'Clear All');
+          if (!confirmed) {
+            return;
+          }
           await credentials.clearAll();
           provider.refreshModels();
           await postState();
@@ -63,10 +76,13 @@ export function openConfigPanel(
         await panel.webview.postMessage({ type: 'error', error: text });
         vscode.window.showErrorMessage(text);
       }
-    },
-    undefined,
-    context.subscriptions
+    }, undefined)
   );
+}
+
+async function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(message, { modal: true }, confirmLabel);
+  return choice === confirmLabel;
 }
 
 interface ProviderOption {

@@ -183,12 +183,15 @@ export class CredentialStore {
     if (!store.providers[OPENAI_CODEX_PROVIDER_ID]) {
       const legacyOpenAI = await this.context.secrets.get(LEGACY_OPENAI_CODEX_SECRET);
       if (legacyOpenAI) {
-        store.providers[OPENAI_CODEX_PROVIDER_ID] = {
-          type: 'oauth',
-          credentials: JSON.parse(legacyOpenAI) as OAuthCredentials,
-          updatedAt: Date.now()
-        };
-        await this.saveStore(store);
+        const credentials = parseOAuthCredentials(legacyOpenAI);
+        if (credentials) {
+          store.providers[OPENAI_CODEX_PROVIDER_ID] = {
+            type: 'oauth',
+            credentials,
+            updatedAt: Date.now()
+          };
+          await this.saveStore(store);
+        }
         await this.context.secrets.delete(LEGACY_OPENAI_CODEX_SECRET);
       }
     }
@@ -214,6 +217,15 @@ function parseStore(raw: string | undefined): StoredProviderCredentials {
     };
   } catch {
     return { version: 1, providers: {} };
+  }
+}
+
+function parseOAuthCredentials(raw: string): OAuthCredentials | undefined {
+  try {
+    const parsed = JSON.parse(raw) as OAuthCredentials;
+    return parsed && typeof parsed === 'object' ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 

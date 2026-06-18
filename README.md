@@ -18,7 +18,7 @@ Install Pi Router from the [VS Code Marketplace](https://marketplace.visualstudi
 
 ## Requirements
 
-- VS Code `1.104.0` or later
+- VS Code `1.125.0` or later
 - Node.js `22` or later
 - pnpm `11.7.0` or a compatible version
 

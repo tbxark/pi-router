@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { getProviders, type KnownProvider } from '@earendil-works/pi-ai';
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
-import { openConfigPanel } from './configPanel.js';
-import { CredentialStore } from './credentials.js';
-import { PiLanguageModelProvider } from './provider.js';
-import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata.js';
+import { openConfigPanel } from './configPanel';
+import { CredentialStore } from './credentials';
+import { PiLanguageModelProvider } from './provider';
+import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from './providerMetadata';
 
 const VENDOR_ID = 'pi-router';
 
