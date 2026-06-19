@@ -104,8 +104,6 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
-      this.logger.logRequest(model, messages, _options);
-
       const requestOptions = {
         apiKey: credentials.apiKey,
         env: credentials.env,
@@ -121,6 +119,8 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       if (reasoning) {
         requestOptions.reasoning = reasoning;
       }
+
+      this.logger.logRequest(model, { messages, options: _options, reasoning: requestOptions.reasoning });
 
       const stream = apiProvider.streamSimple(model, toPiContext(messages, _options), requestOptions);
       const convertEvent = createResponseConverter();
@@ -184,7 +184,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     } else if (event.type === 'done') {
       this.logger.logResponse(event.message);
     } else if (event.type === 'error') {
-      this.logger.logResponse(event.error);
+      this.logger.logError(event.error);
       throw new Error(event.error.errorMessage ?? 'pi-ai request failed.');
     }
   }

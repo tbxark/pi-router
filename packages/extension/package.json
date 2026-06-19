@@ -27,6 +27,22 @@
     "Chat"
   ],
   "contributes": {
+    "configuration": {
+      "title": "Pi Router",
+      "properties": {
+        "piRouter.logLevel": {
+          "type": "string",
+          "enum": [
+            "off",
+            "error",
+            "info",
+            "debug"
+          ],
+          "default": "error",
+          "markdownDescription": "Controls how much Pi Router writes to the output channel. `off` disables logging, `error` logs failures, `info` logs request/response summaries, and `debug` logs verbose details."
+        }
+      }
+    },
     "languageModelChatProviders": [
       {
         "vendor": "pi-router",

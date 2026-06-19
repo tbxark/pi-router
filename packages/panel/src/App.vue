@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { onMessage, postMessage } from './vscode-api';
+import LogSettings from './components/LogSettings.vue';
 import ProviderForm from './components/ProviderForm.vue';
 import ProviderList from './components/ProviderList.vue';
 import type { PanelState } from '@pi-router/messages';
@@ -8,7 +9,8 @@ import type { PanelState } from '@pi-router/messages';
 const state = ref<PanelState>({
   providers: [],
   configured: [],
-  oauthProviderIds: []
+  oauthProviderIds: [],
+  logLevel: 'error'
 });
 
 const error = ref('');
@@ -61,6 +63,8 @@ function onCloseModal() {
   </div>
 
   <div v-if="error" class="error">{{ error }}</div>
+
+  <LogSettings :level="state.logLevel" />
 
   <ProviderList :state="state" @add="onAddProvider" @edit="onEditProvider" />
 

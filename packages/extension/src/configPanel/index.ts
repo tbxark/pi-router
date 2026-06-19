@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { CredentialStore } from '../credentials';
 import { PiLanguageModelProvider } from '../languageModel';
 import { WebviewOAuthBridge } from '../oauth/webviewCallbacks';
+import { setLogLevel } from '../shared/config';
 import { confirmDangerousAction } from '../shared/dialogs';
 import { getProviderDisplayName } from '../shared/providerMetadata';
 import { getHtml } from './html';
@@ -53,11 +54,7 @@ export function openConfigPanel(
             break;
 
           case 'saveApiKey':
-            await credentials.setProviderApiKey(
-              message.providerId,
-              message.apiKey,
-              parseEnvText(message.envText)
-            );
+            await credentials.setProviderApiKey(message.providerId, message.apiKey, parseEnvText(message.envText));
             provider.refreshModels();
             await postState();
             break;
@@ -69,7 +66,10 @@ export function openConfigPanel(
             );
             provider.refreshModels();
             await postState();
-            void panel.webview.postMessage({ type: 'oauthDone', providerId: message.providerId } satisfies ExtensionMessage);
+            void panel.webview.postMessage({
+              type: 'oauthDone',
+              providerId: message.providerId
+            } satisfies ExtensionMessage);
             break;
 
           case 'oauthPromptResponse':
@@ -125,6 +125,11 @@ export function openConfigPanel(
 
             await credentials.clearAll();
             provider.refreshModels();
+            await postState();
+            break;
+
+          case 'saveLogLevel':
+            await setLogLevel(message.level);
             await postState();
             break;
         }

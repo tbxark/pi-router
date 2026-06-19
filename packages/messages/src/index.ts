@@ -3,7 +3,10 @@ export interface PanelState {
   providers: ProviderOption[];
   configured: ConfiguredProvider[];
   oauthProviderIds: string[];
+  logLevel: LogLevel;
 }
+
+export type LogLevel = 'off' | 'error' | 'info' | 'debug';
 
 export interface ProviderOption {
   id: string;
@@ -61,6 +64,11 @@ export interface ClearCredentialsMessage {
   type: 'clearCredentials';
 }
 
+export interface SaveLogLevelMessage {
+  type: 'saveLogLevel';
+  level: LogLevel;
+}
+
 export interface SaveModelReasoningMessage {
   type: 'saveModelReasoning';
   providerId: string;
@@ -94,6 +102,7 @@ export type WebviewMessage =
   | LoginOAuthMessage
   | RemoveProviderMessage
   | ClearCredentialsMessage
+  | SaveLogLevelMessage
   | SaveModelReasoningMessage
   | OAuthPromptResponseMessage
   | OAuthSelectResponseMessage
@@ -179,6 +188,11 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
     case 'ready':
     case 'clearCredentials':
       return true;
+
+    case 'saveLogLevel':
+      return (
+        message.level === 'off' || message.level === 'error' || message.level === 'info' || message.level === 'debug'
+      );
 
     case 'saveApiKey':
       return (

@@ -11,6 +11,7 @@ import {
 import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
 import type { PanelState, ReasoningModelInfo } from '@pi-router/messages';
 import { CredentialStore } from '../credentials';
+import { getLogLevel } from '../shared/config';
 import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from '../shared/providerMetadata';
 
 export async function getPanelState(credentials: CredentialStore): Promise<PanelState> {
@@ -48,7 +49,8 @@ export async function getPanelState(credentials: CredentialStore): Promise<Panel
   return {
     providers,
     configured,
-    oauthProviderIds: Array.from(oauthProviders.keys())
+    oauthProviderIds: Array.from(oauthProviders.keys()),
+    logLevel: getLogLevel()
   };
 }
 
