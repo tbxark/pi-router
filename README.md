@@ -1,7 +1,5 @@
 <p align="center">
-  <a href="./packages/extension/assets/icon.svg">
     <img src="./packages/extension/assets/icon.png" width="160" height="160" alt="Pi Router icon">
-  </a>
 </p>
 
 # Pi Router

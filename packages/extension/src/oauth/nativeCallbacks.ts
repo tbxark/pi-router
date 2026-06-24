@@ -1,60 +1,82 @@
 import * as vscode from 'vscode';
-import {
-  getOAuthProvider,
-  type OAuthDeviceCodeInfo,
-  type OAuthLoginCallbacks,
-  type OAuthSelectPrompt
-} from '@earendil-works/pi-ai/oauth';
+import { type AuthLoginCallbacks, type AuthPrompt } from '@earendil-works/pi-ai';
+import { getProviderDisplayName, getProviderOAuthName } from '../shared/providerMetadata';
 
 // OAuth login UX driven through native VS Code dialogs (the CLI-command path).
 // The webview path uses a separate adapter (see oauth/webviewCallbacks.ts).
-export function createNativeOAuthCallbacks(providerId: string): OAuthLoginCallbacks {
-  const providerName = getOAuthProvider(providerId)?.name ?? providerId;
+export function createNativeOAuthCallbacks(providerId: string): AuthLoginCallbacks {
+  const providerName = getProviderOAuthName(providerId) ?? getProviderDisplayName(providerId);
   return {
-    onAuth: (info: { url: string; instructions?: string }) => {
-      void vscode.env.openExternal(vscode.Uri.parse(info.url));
-      void vscode.window.showInformationMessage(info.instructions ?? `Complete ${providerName} login in the browser.`);
-    },
-    onDeviceCode: (info: OAuthDeviceCodeInfo) => {
-      void vscode.env.clipboard.writeText(info.userCode);
-      void vscode.window
-        .showInformationMessage(`${providerName} device code copied: ${info.userCode}`, 'Open Login Page')
-        .then((choice) => {
-          if (choice === 'Open Login Page') {
-            void vscode.env.openExternal(vscode.Uri.parse(info.verificationUri));
-          }
-        });
-    },
-    onPrompt: async (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => {
-      const value = await vscode.window.showInputBox({
-        prompt: prompt.message,
-        placeHolder: prompt.placeholder,
-        ignoreFocusOut: true
-      });
-      if (!value && !prompt.allowEmpty) {
-        throw new Error('Login cancelled.');
+    prompt: (prompt) => promptNative(prompt),
+    notify: (event) => {
+      if (event.type === 'auth_url') {
+        void vscode.env.openExternal(vscode.Uri.parse(event.url));
+        void vscode.window.showInformationMessage(
+          event.instructions ?? `Complete ${providerName} login in the browser.`
+        );
+      } else if (event.type === 'device_code') {
+        void vscode.env.clipboard.writeText(event.userCode);
+        void vscode.window
+          .showInformationMessage(`${providerName} device code copied: ${event.userCode}`, 'Open Login Page')
+          .then((choice) => {
+            if (choice === 'Open Login Page') {
+              void vscode.env.openExternal(vscode.Uri.parse(event.verificationUri));
+            }
+          });
+      } else {
+        void vscode.window.setStatusBarMessage(event.message, 5000);
       }
-      return value ?? '';
-    },
-    onManualCodeInput: async () => {
-      const value = await vscode.window.showInputBox({
-        prompt: `Paste the ${providerName} authorization code or full redirect URL.`,
-        ignoreFocusOut: true
-      });
-      if (!value) {
-        throw new Error('Login cancelled.');
-      }
-      return value;
-    },
-    onSelect: async (prompt: OAuthSelectPrompt) => {
-      const picked = await vscode.window.showQuickPick(
-        prompt.options.map((option) => ({ label: option.label, id: option.id })),
-        { placeHolder: prompt.message, ignoreFocusOut: true }
-      );
-      return picked?.id;
-    },
-    onProgress: (message: string) => {
-      void vscode.window.setStatusBarMessage(message, 5000);
     }
   };
+}
+
+async function promptNative(prompt: AuthPrompt): Promise<string> {
+  if (prompt.type === 'select') {
+    const picked = await raceAbort(
+      vscode.window.showQuickPick(
+        prompt.options.map((option) => ({
+          label: option.label,
+          description: option.description,
+          id: option.id
+        })),
+        { placeHolder: prompt.message, ignoreFocusOut: true }
+      ),
+      prompt.signal
+    );
+    if (!picked) {
+      throw new Error('Login cancelled.');
+    }
+    return picked.id;
+  }
+
+  const value = await raceAbort(
+    vscode.window.showInputBox({
+      prompt: prompt.message,
+      placeHolder: prompt.placeholder,
+      password: prompt.type === 'secret',
+      ignoreFocusOut: true
+    }),
+    prompt.signal
+  );
+  if (value === undefined) {
+    throw new Error('Login cancelled.');
+  }
+  return value;
+}
+
+function raceAbort<T>(promise: PromiseLike<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) {
+    return Promise.resolve(promise);
+  }
+  if (signal.aborted) {
+    return Promise.reject(new Error('Login cancelled.'));
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error('Login cancelled.'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    void Promise.resolve(promise)
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort));
+  });
 }

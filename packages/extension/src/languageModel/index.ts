@@ -1,12 +1,5 @@
 import * as vscode from 'vscode';
-import {
-  getApiProvider,
-  getModels,
-  type Api,
-  type AssistantMessageEvent,
-  type KnownProvider,
-  type Model
-} from '@earendil-works/pi-ai';
+import { type Api, type AssistantMessageEvent, type Model, type SimpleStreamOptions } from '@earendil-works/pi-ai';
 import {
   createResponseConverter,
   textFromParts,
@@ -15,13 +8,9 @@ import {
   type ResponseConverter
 } from './conversion';
 import { CredentialStore } from '../credentials';
+import { createPiModels } from '../shared/piModels';
 import { getProviderDisplayName } from '../shared/providerMetadata';
-import {
-  applyOAuthModelOverrides,
-  decodeLanguageModelId,
-  encodeLanguageModelId,
-  resolveReasoningLevel
-} from './modelUtils';
+import { decodeLanguageModelId, encodeLanguageModelId, resolveReasoningLevel } from './modelUtils';
 import { RequestLogger } from './requestLogger';
 
 interface ResolvedLanguageModel {
@@ -33,12 +22,14 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
   private readonly logger: RequestLogger;
+  private readonly models: ReturnType<typeof createPiModels>;
 
   constructor(
     private readonly credentials: CredentialStore,
     output?: vscode.OutputChannel
   ) {
     this.logger = new RequestLogger(output);
+    this.models = createPiModels(credentials);
   }
 
   refreshModels(): void {
@@ -84,8 +75,8 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       return;
     }
 
-    const credentials = await this.credentials.resolveProviderCredentials(resolved.providerId);
-    if (!credentials?.apiKey) {
+    const settings = await this.credentials.getProviderRequestSettings(resolved.providerId);
+    if (!settings || !(await this.credentials.canResolveModelAuth(resolved.model, settings.env))) {
       progress.report(
         new vscode.LanguageModelTextPart(
           `Credentials are missing for ${resolved.providerId}. Run "Pi Router: Manage Providers" and add this provider.`
@@ -94,35 +85,29 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       return;
     }
 
-    const model = applyOAuthModelOverrides(resolved.model, credentials.oauthCredentials);
-    const apiProvider = getApiProvider(model.api);
-    if (!apiProvider) {
-      progress.report(new vscode.LanguageModelTextPart(`No pi-ai API provider registered for ${model.api}.`));
-      return;
-    }
+    const model = resolved.model;
 
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
-      const requestOptions = {
-        apiKey: credentials.apiKey,
-        env: credentials.env,
+      const requestOptions: SimpleStreamOptions & { toolChoice?: string } = {
+        env: settings.env,
         signal: abort.signal,
         sessionId: `${model.provider}-vscode-pi-chat`
-      } as Parameters<typeof apiProvider.streamSimple>[2] & { toolChoice?: string; reasoning?: string };
+      };
 
       if (_options.tools?.length) {
         requestOptions.toolChoice = toPiToolChoice(model.api, _options.toolMode);
       }
 
-      const reasoning = resolveReasoningLevel(model, credentials.reasoning?.[resolved.model.id]);
+      const reasoning = resolveReasoningLevel(model, settings.reasoning?.[resolved.model.id]);
       if (reasoning) {
         requestOptions.reasoning = reasoning;
       }
 
       this.logger.logRequest(model, { messages, options: _options, reasoning: requestOptions.reasoning });
 
-      const stream = apiProvider.streamSimple(model, toPiContext(messages, _options), requestOptions);
+      const stream = this.models.streamSimple(model, toPiContext(messages, _options), requestOptions);
       const convertEvent = createResponseConverter();
 
       for await (const event of stream) {
@@ -159,7 +144,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
       return undefined;
     }
 
-    const model = getModels(parsed.providerId as KnownProvider).find((candidate) => candidate.id === parsed.modelId);
+    const model = this.models.getModel(parsed.providerId, parsed.modelId);
     return model ? { model, providerId: parsed.providerId } : undefined;
   }
 
@@ -167,7 +152,7 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const summaries = await this.credentials.listProviderCredentials();
     return summaries
       .filter((summary) => summary.hasKey)
-      .flatMap((summary) => getModels(summary.providerId as KnownProvider) as Model<Api>[]);
+      .flatMap((summary) => this.models.getModels(summary.providerId) as Model<Api>[]);
   }
 
   private reportPiEvent(

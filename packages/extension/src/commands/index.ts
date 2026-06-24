@@ -1,12 +1,17 @@
 import * as vscode from 'vscode';
-import { getProviders, type KnownProvider } from '@earendil-works/pi-ai';
-import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
+import { getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
 import { openConfigPanel } from '../configPanel';
 import { CredentialStore } from '../credentials';
 import { PiLanguageModelProvider } from '../languageModel';
 import { createNativeOAuthCallbacks } from '../oauth/nativeCallbacks';
 import { confirmDangerousAction } from '../shared/dialogs';
-import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from '../shared/providerMetadata';
+import {
+  getProviderApiKeyEnvVars,
+  getProviderDisplayName,
+  getProviderEnvHints,
+  providerSupportsApiKey,
+  providerSupportsOAuth
+} from '../shared/providerMetadata';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -23,7 +28,10 @@ export function registerCommands(
 
 async function addProviderApiKey(credentials: CredentialStore, provider: PiLanguageModelProvider): Promise<void> {
   const providerId = await pickProvider(
-    getProviders().filter((id) => getProviderApiKeyEnvVars(id).length > 0 || getProviderEnvHints(id).length > 0)
+    getBuiltinProviders().filter(
+      (id) =>
+        providerSupportsApiKey(id) || getProviderApiKeyEnvVars(id).length > 0 || getProviderEnvHints(id).length > 0
+    )
   );
   if (!providerId) {
     return;
@@ -55,7 +63,7 @@ async function addProviderApiKey(credentials: CredentialStore, provider: PiLangu
 }
 
 async function loginOAuthProvider(credentials: CredentialStore, provider: PiLanguageModelProvider): Promise<void> {
-  const providerId = await pickProvider(getOAuthProviders().map((oauthProvider) => oauthProvider.id as KnownProvider));
+  const providerId = await pickProvider(getBuiltinProviders().filter((id) => providerSupportsOAuth(id)));
   if (!providerId) {
     return;
   }

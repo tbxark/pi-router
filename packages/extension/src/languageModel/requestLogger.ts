@@ -3,11 +3,11 @@ import { type Api, type AssistantMessage, type Model, type ToolCall } from '@ear
 import { OutputLogger } from '../shared/logger';
 import { toolModeLabel } from './conversion';
 
-type RequestLogOptions = {
+interface RequestLogOptions {
   messages: readonly vscode.LanguageModelChatRequestMessage[];
   options: vscode.ProvideLanguageModelChatResponseOptions;
   reasoning: string | undefined;
-};
+}
 
 // Formats pi-ai request/response activity into the "Pi Router" output channel.
 // All methods are no-ops when no channel is provided.

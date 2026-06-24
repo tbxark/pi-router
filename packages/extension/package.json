@@ -2,7 +2,7 @@
   "name": "pi-router",
   "displayName": "Pi Router",
   "description": "Provides custom VS Code chat models through Pi.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "tbxark",
   "type": "module",
   "main": "./out/extension.js",
@@ -85,7 +85,7 @@
   },
   "dependencies": {
     "@pi-router/messages": "workspace:*",
-    "@earendil-works/pi-ai": "0.79.6"
+    "@earendil-works/pi-ai": "0.80.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

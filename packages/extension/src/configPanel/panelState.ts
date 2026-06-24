@@ -1,30 +1,33 @@
 import {
   clampThinkingLevel,
-  getModels,
-  getProviders,
   getSupportedThinkingLevels,
   type Api,
   type KnownProvider,
   type Model,
   type ModelThinkingLevel
 } from '@earendil-works/pi-ai';
-import { getOAuthProviders } from '@earendil-works/pi-ai/oauth';
+import { getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
 import type { PanelState, ReasoningModelInfo } from '@pi-router/messages';
 import { CredentialStore } from '../credentials';
 import { getLogLevel } from '../shared/config';
-import { getProviderApiKeyEnvVars, getProviderDisplayName, getProviderEnvHints } from '../shared/providerMetadata';
+import {
+  getProviderApiKeyEnvVars,
+  getProviderDisplayName,
+  getProviderEnvHints,
+  getProviderOAuthName,
+  providerSupportsOAuth
+} from '../shared/providerMetadata';
 
 export async function getPanelState(credentials: CredentialStore): Promise<PanelState> {
-  const oauthProviders = new Map(getOAuthProviders().map((oauthProvider) => [oauthProvider.id, oauthProvider]));
-  const providers = getProviders()
+  const providers = getBuiltinProviders()
     .map((providerId) => {
-      const models = getModels(providerId as KnownProvider);
+      const models = getBuiltinModels(providerId);
       return {
         id: providerId,
         label: getProviderDisplayName(providerId),
         modelCount: models.length,
         sampleModels: models.slice(0, 6).map((model) => model.name),
-        oauthName: oauthProviders.get(providerId)?.name,
+        oauthName: getProviderOAuthName(providerId),
         apiKeyEnvVars: getProviderApiKeyEnvVars(providerId),
         envHints: getProviderEnvHints(providerId)
       };
@@ -33,7 +36,7 @@ export async function getPanelState(credentials: CredentialStore): Promise<Panel
 
   const configured = (await credentials.listProviderCredentials())
     .map((summary) => {
-      const models = getModels(summary.providerId as KnownProvider);
+      const models = getBuiltinModels(summary.providerId as KnownProvider);
       return {
         id: summary.providerId,
         label: getProviderDisplayName(summary.providerId),
@@ -49,7 +52,7 @@ export async function getPanelState(credentials: CredentialStore): Promise<Panel
   return {
     providers,
     configured,
-    oauthProviderIds: Array.from(oauthProviders.keys()),
+    oauthProviderIds: getBuiltinProviders().filter((providerId) => providerSupportsOAuth(providerId)),
     logLevel: getLogLevel()
   };
 }

@@ -1,4 +1,6 @@
-import { findEnvKeys } from '@earendil-works/pi-ai';
+import { builtinModels } from '@earendil-works/pi-ai/providers/all';
+
+const BUILTIN_MODELS = builtinModels();
 
 // Display labels for providers whose name differs from the title-cased fallback
 // (e.g. `OpenAI` vs `Openai`). Providers that title-case correctly are omitted.
@@ -33,9 +35,45 @@ const PROVIDER_LABELS: Record<string, string> = {
   'zai-coding-cn': 'ZAI Coding Plan China'
 };
 
+const PROVIDER_API_KEY_ENV_VARS: Record<string, string[]> = {
+  'ant-ling': ['ANT_LING_API_KEY'],
+  'azure-openai-responses': ['AZURE_OPENAI_API_KEY'],
+  anthropic: ['ANTHROPIC_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'],
+  cerebras: ['CEREBRAS_API_KEY'],
+  'cloudflare-ai-gateway': ['CLOUDFLARE_API_KEY'],
+  'cloudflare-workers-ai': ['CLOUDFLARE_API_KEY'],
+  deepseek: ['DEEPSEEK_API_KEY'],
+  fireworks: ['FIREWORKS_API_KEY'],
+  'github-copilot': ['COPILOT_GITHUB_TOKEN'],
+  google: ['GEMINI_API_KEY'],
+  'google-vertex': ['GOOGLE_CLOUD_API_KEY'],
+  groq: ['GROQ_API_KEY'],
+  huggingface: ['HF_TOKEN'],
+  'kimi-coding': ['KIMI_API_KEY'],
+  minimax: ['MINIMAX_API_KEY'],
+  'minimax-cn': ['MINIMAX_CN_API_KEY'],
+  mistral: ['MISTRAL_API_KEY'],
+  moonshotai: ['MOONSHOT_API_KEY'],
+  'moonshotai-cn': ['MOONSHOT_API_KEY'],
+  nvidia: ['NVIDIA_API_KEY'],
+  opencode: ['OPENCODE_API_KEY'],
+  'opencode-go': ['OPENCODE_API_KEY'],
+  openai: ['OPENAI_API_KEY'],
+  openrouter: ['OPENROUTER_API_KEY'],
+  together: ['TOGETHER_API_KEY'],
+  'vercel-ai-gateway': ['AI_GATEWAY_API_KEY'],
+  xai: ['XAI_API_KEY'],
+  xiaomi: ['XIAOMI_API_KEY'],
+  'xiaomi-token-plan-ams': ['XIAOMI_TOKEN_PLAN_AMS_API_KEY'],
+  'xiaomi-token-plan-cn': ['XIAOMI_TOKEN_PLAN_CN_API_KEY'],
+  'xiaomi-token-plan-sgp': ['XIAOMI_TOKEN_PLAN_SGP_API_KEY'],
+  zai: ['ZAI_API_KEY'],
+  'zai-coding-cn': ['ZAI_CODING_CN_API_KEY']
+};
+
 // Extra (non-API-key) environment variables to surface when configuring a
-// provider. pi-ai resolves these from ambient credentials, so they are hints
-// only and are not part of `findEnvKeys`.
+// provider. pi-ai resolves these from provider-scoped or ambient credentials,
+// so they are hints rather than API-key field aliases.
 const PROVIDER_ENV_HINTS: Record<string, string[]> = {
   'amazon-bedrock': [
     'AWS_PROFILE',
@@ -58,14 +96,9 @@ const PROVIDER_ENV_HINTS: Record<string, string[]> = {
   'google-vertex': ['GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_LOCATION', 'GOOGLE_APPLICATION_CREDENTIALS']
 };
 
-// `findEnvKeys` only reports env vars that currently hold a value. Passing an
-// env where every lookup resolves truthy makes it return the full set of
-// candidate API-key variables for a provider, keeping pi-ai as the single
-// source of truth instead of duplicating the mapping here.
-const ALL_ENV_PRESENT = new Proxy({}, { get: () => 'present' }) as Record<string, string>;
-
 export function getProviderDisplayName(providerId: string): string {
   return (
+    BUILTIN_MODELS.getProvider(providerId)?.name ??
     PROVIDER_LABELS[providerId] ??
     providerId
       .split('-')
@@ -75,9 +108,21 @@ export function getProviderDisplayName(providerId: string): string {
 }
 
 export function getProviderApiKeyEnvVars(providerId: string): string[] {
-  return findEnvKeys(providerId, ALL_ENV_PRESENT) ?? [];
+  return PROVIDER_API_KEY_ENV_VARS[providerId] ?? [];
 }
 
 export function getProviderEnvHints(providerId: string): string[] {
   return PROVIDER_ENV_HINTS[providerId] ?? [];
+}
+
+export function getProviderOAuthName(providerId: string): string | undefined {
+  return BUILTIN_MODELS.getProvider(providerId)?.auth.oauth?.name;
+}
+
+export function providerSupportsApiKey(providerId: string): boolean {
+  return Boolean(BUILTIN_MODELS.getProvider(providerId)?.auth.apiKey);
+}
+
+export function providerSupportsOAuth(providerId: string): boolean {
+  return Boolean(BUILTIN_MODELS.getProvider(providerId)?.auth.oauth);
 }

@@ -1,5 +1,4 @@
-import { type ModelThinkingLevel, type ProviderEnv } from '@earendil-works/pi-ai';
-import { type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
+import { type ModelThinkingLevel, type OAuthCredentials, type ProviderEnv } from '@earendil-works/pi-ai';
 
 export type StoredProviderCredential = StoredApiKeyCredential | StoredOAuthCredential;
 
@@ -33,12 +32,4 @@ export interface ProviderCredentialSummary {
   envKeys: string[];
   reasoning: Record<string, ModelThinkingLevel>;
   updatedAt: number;
-}
-
-export interface ResolvedProviderCredentials {
-  type: StoredProviderCredential['type'];
-  apiKey?: string;
-  env: ProviderEnv;
-  oauthCredentials?: OAuthCredentials;
-  reasoning?: Record<string, ModelThinkingLevel>;
 }

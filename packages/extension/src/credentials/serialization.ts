@@ -1,5 +1,5 @@
 import { type ProviderEnv } from '@earendil-works/pi-ai';
-import { type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
+import { type OAuthCredentials } from '@earendil-works/pi-ai';
 import { type StoredProviderCredentials } from './types';
 
 export function parseStore(raw: string | undefined): StoredProviderCredentials {

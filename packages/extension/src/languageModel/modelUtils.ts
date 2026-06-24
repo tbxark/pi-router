@@ -5,7 +5,6 @@ import {
   type ModelThinkingLevel,
   type ThinkingLevel
 } from '@earendil-works/pi-ai';
-import { getOAuthProvider, type OAuthCredentials } from '@earendil-works/pi-ai/oauth';
 
 // Model IDs are encoded as `providerId/modelId`. The first `/` is the separator,
 // so provider IDs must not contain a leading slash.
@@ -46,13 +45,4 @@ export function resolveReasoningLevel(
 
   const clamped = clampThinkingLevel(model, desired);
   return clamped === 'off' ? undefined : clamped;
-}
-
-export function applyOAuthModelOverrides(model: Model<Api>, credentials: OAuthCredentials | undefined): Model<Api> {
-  if (!credentials) {
-    return model;
-  }
-
-  const provider = getOAuthProvider(model.provider);
-  return (provider?.modifyModels?.([model], credentials) as Model<Api>[] | undefined)?.[0] ?? model;
 }

@@ -1,9 +1,3 @@
-<p align="center">
-  <a href="./assets/icon.svg">
-    <img src="./assets/icon.png" width="160" height="160" alt="Pi Router icon">
-  </a>
-</p>
-
 # Pi Router
 
 Pi Router provides custom VS Code chat models through Pi.
@@ -17,6 +11,8 @@ The extension reads provider credentials configured in VS Code SecretStorage and
 Install Pi Router from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=tbxark.pi-router).
 
 ## Usage
+
+Open the command palette with `Cmd+Shift+P` on macOS or `Ctrl+Shift+P` on Windows/Linux. You can also open it from the menu: `View` > `Command Palette...`.
 
 1. Install Pi Router, then reload VS Code if prompted.
 2. Open the command palette and run `Pi Router: Manage Providers`.

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { type OAuthLoginCallbacks } from '@earendil-works/pi-ai/oauth';
+import { type AuthLoginCallbacks, type AuthPrompt } from '@earendil-works/pi-ai';
 import type { ExtensionMessage } from '@pi-router/messages';
 
 // OAuth login UX bridged across the webview boundary. pi-ai's async callbacks are
@@ -7,76 +7,104 @@ import type { ExtensionMessage } from '@pi-router/messages';
 // park a resolver that a later webview response message settles via `resolve()`.
 export class WebviewOAuthBridge {
   private resolver: ((value: string) => void) | null = null;
+  private rejecter: ((error: Error) => void) | null = null;
 
   constructor(private readonly webview: vscode.Webview) {}
 
   // Settles the pending prompt/select/manual-code callback with the webview's reply.
   resolve(value: string): void {
     this.resolver?.(value);
-    this.resolver = null;
   }
 
-  createCallbacks(providerId: string): OAuthLoginCallbacks {
+  createCallbacks(providerId: string): AuthLoginCallbacks {
     return {
-      onAuth: (info: { url: string; instructions?: string }) => {
-        void this.webview.postMessage({
-          type: 'oauthAuth',
-          providerId,
-          url: info.url,
-          instructions: info.instructions
-        } satisfies ExtensionMessage);
-        void vscode.env.openExternal(vscode.Uri.parse(info.url));
-      },
-      onDeviceCode: (info: { userCode: string; verificationUri: string }) => {
-        void this.webview.postMessage({
-          type: 'oauthDeviceCode',
-          providerId,
-          userCode: info.userCode,
-          verificationUri: info.verificationUri
-        } satisfies ExtensionMessage);
-      },
-      onPrompt: async (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => {
-        return this.waitForResponse(() => {
+      prompt: (prompt) => this.prompt(providerId, prompt),
+      notify: (event) => {
+        if (event.type === 'auth_url') {
           void this.webview.postMessage({
-            type: 'oauthPrompt',
+            type: 'oauthAuth',
             providerId,
-            message: prompt.message,
-            placeholder: prompt.placeholder,
-            allowEmpty: prompt.allowEmpty
+            url: event.url,
+            instructions: event.instructions
           } satisfies ExtensionMessage);
-        });
-      },
-      onSelect: async (prompt: { message: string; options: { id: string; label: string }[] }) => {
-        return this.waitForResponse(() => {
+          void vscode.env.openExternal(vscode.Uri.parse(event.url));
+        } else if (event.type === 'device_code') {
           void this.webview.postMessage({
-            type: 'oauthSelect',
+            type: 'oauthDeviceCode',
             providerId,
-            message: prompt.message,
-            options: prompt.options
+            userCode: event.userCode,
+            verificationUri: event.verificationUri
           } satisfies ExtensionMessage);
-        });
-      },
-      onManualCodeInput: async () => {
-        return this.waitForResponse(() => {
+        } else {
           void this.webview.postMessage({
-            type: 'oauthManualCodeInput',
-            providerId
+            type: 'oauthProgress',
+            providerId,
+            message: event.message
           } satisfies ExtensionMessage);
-        });
-      },
-      onProgress: (message: string) => {
-        void this.webview.postMessage({
-          type: 'oauthProgress',
-          providerId,
-          message
-        } satisfies ExtensionMessage);
+        }
       }
     };
   }
 
-  private waitForResponse(post: () => void): Promise<string> {
-    return new Promise<string>((resolve) => {
-      this.resolver = resolve;
+  private prompt(providerId: string, prompt: AuthPrompt): Promise<string> {
+    if (prompt.type === 'select') {
+      return this.waitForResponse(() => {
+        void this.webview.postMessage({
+          type: 'oauthSelect',
+          providerId,
+          message: prompt.message,
+          options: prompt.options.map((option) => ({ id: option.id, label: option.label }))
+        } satisfies ExtensionMessage);
+      }, prompt.signal);
+    }
+
+    if (prompt.type === 'manual_code') {
+      return this.waitForResponse(() => {
+        void this.webview.postMessage({
+          type: 'oauthManualCodeInput',
+          providerId
+        } satisfies ExtensionMessage);
+      }, prompt.signal);
+    }
+
+    return this.waitForResponse(() => {
+      void this.webview.postMessage({
+        type: 'oauthPrompt',
+        providerId,
+        message: prompt.message,
+        placeholder: prompt.placeholder,
+        allowEmpty: false
+      } satisfies ExtensionMessage);
+    }, prompt.signal);
+  }
+
+  private waitForResponse(post: () => void, signal: AbortSignal | undefined): Promise<string> {
+    if (signal?.aborted) {
+      return Promise.reject(new Error('Login cancelled.'));
+    }
+
+    this.rejecter?.(new Error('Login prompt replaced.'));
+
+    return new Promise<string>((resolve, reject) => {
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+        this.resolver = null;
+        this.rejecter = null;
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(new Error('Login cancelled.'));
+      };
+
+      this.resolver = (value) => {
+        cleanup();
+        resolve(value);
+      };
+      this.rejecter = (error) => {
+        cleanup();
+        reject(error);
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
       post();
     });
   }

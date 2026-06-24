@@ -7,3 +7,4 @@ allowBuilds:
   protobufjs: false
 minimumReleaseAgeExclude:
   - '@types/vscode@1.125.0'
+  - '@earendil-works/pi-ai@0.80.2'

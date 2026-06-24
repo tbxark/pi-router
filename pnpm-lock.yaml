@@ -236,13 +236,13 @@ importers:
         version: 8.61.1(eslint@9.39.4)(typescript@5.9.3)
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
 
   packages/extension:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.79.6
-        version: 0.79.6(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.80.2
+        version: 0.80.2(ws@8.21.0)(zod@4.4.3)
       '@pi-router/messages':
         specifier: workspace:*
         version: link:../messages
@@ -279,7 +279,7 @@ importers:
         version: 8.61.1(eslint@9.39.4)(typescript@5.9.3)
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
 
   packages/messages:
     devDependencies:
@@ -288,7 +288,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21))
 
   packages/panel:
     dependencies:
@@ -313,7 +313,7 @@ importers:
         version: 6.4.3(@types/node@22.19.21)(lightningcss@1.32.0)
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@22.19.21)(vite@6.4.3(@types/node@22.19.21)(lightningcss@1.32.0))
+        version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@6.4.3(@types/node@22.19.21)(lightningcss@1.32.0))
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
@@ -451,8 +451,8 @@ packages:
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
 
-  '@earendil-works/pi-ai@0.79.6':
-    resolution: {integrity: sha512-KGepEdgEeWDs7Imwlp96tBsO8TjSIpcDBvazsCDtHRa81+uwJI/YGetTegI52pMlKhVpJFLIGajRi4PCGC5MUg==}
+  '@earendil-works/pi-ai@0.80.2':
+    resolution: {integrity: sha512-5GNKfdrRJ4uZ5Zd9iudoXggi/BbUcKnD/xfRHtdR+7q4vWqPvfx8auFuaT+ewGBVI8K4wj87eigFQ/iCSuy9RQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -691,8 +691,13 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@mistralai/mistralai@2.2.1':
-    resolution: {integrity: sha512-uKU8CZmL2RzYKmplsU01hii4p3pe4HqJefpWNRWXm1Tcm0Sm4xXfwSLIy4k7ZCPlbETCGcp69E7hZs+WOJ5itQ==}
+  '@mistralai/mistralai@2.2.6':
+    resolution: {integrity: sha512-W8pX7zHxjJvMIpw8JMxeJEleapXX0Q9NPszdNzqkM3MIEoIGPObdodujj+WHteXEvGfaP/AMwlNyRfEzSY6dQQ==}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
 
   '@napi-rs/wasm-runtime@1.1.5':
     resolution: {integrity: sha512-AWPoBRJ9tsnVhor4sjO7rkni+7p+2IAEFj6cx06UgP10jkQHqay/36uRV/bFkgrh18D9vb4cr8Q0Pthskgzy+Q==}
@@ -702,6 +707,14 @@ packages:
 
   '@nodable/entities@2.2.0':
     resolution: {integrity: sha512-9uGyhaQavEUMC8AIddIjau4NsnsXhou+j5sBAGojCM1oxmQpVKTWR/9JxABD6UAv12vpIms55fPZKFQEhG6uBg==}
+
+  '@opentelemetry/api@1.9.0':
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
+
+  '@opentelemetry/semantic-conventions@1.41.1':
+    resolution: {integrity: sha512-/UhIkaZgPutTFmQ7RnIJGgDXZmtEJ7Dvi86xNTFWcnRxVRNk/aotsqDJYeEvDP+FSMB2SdW+pQzNMcWP0rwuNA==}
+    engines: {node: '>=14'}
 
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
@@ -2561,12 +2574,13 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@earendil-works/pi-ai@0.79.6(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-ai@0.80.2(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
       '@google/genai': 1.52.0
-      '@mistralai/mistralai': 2.2.1
+      '@mistralai/mistralai': 2.2.6(@opentelemetry/api@1.9.0)
+      '@opentelemetry/api': 1.9.0
       '@smithy/node-http-handler': 4.7.3
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
@@ -2750,11 +2764,14 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@mistralai/mistralai@2.2.1':
+  '@mistralai/mistralai@2.2.6(@opentelemetry/api@1.9.0)':
     dependencies:
+      '@opentelemetry/semantic-conventions': 1.41.1
       ws: 8.21.0
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2767,6 +2784,10 @@ snapshots:
     optional: true
 
   '@nodable/entities@2.2.0': {}
+
+  '@opentelemetry/api@1.9.0': {}
+
+  '@opentelemetry/semantic-conventions@1.41.1': {}
 
   '@oxc-project/types@0.133.0': {}
 
@@ -4089,7 +4110,7 @@ snapshots:
       '@types/node': 22.19.21
       fsevents: 2.3.3
 
-  vitest@4.1.9(@types/node@22.19.21)(vite@6.4.3(@types/node@22.19.21)(lightningcss@1.32.0)):
+  vitest@4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@6.4.3(@types/node@22.19.21)(lightningcss@1.32.0)):
     dependencies:
       '@vitest/expect': 4.1.9
       '@vitest/mocker': 4.1.9(vite@6.4.3(@types/node@22.19.21)(lightningcss@1.32.0))
@@ -4112,11 +4133,12 @@ snapshots:
       vite: 6.4.3(@types/node@22.19.21)(lightningcss@1.32.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       '@types/node': 22.19.21
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.9(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)):
+  vitest@4.1.9(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)):
     dependencies:
       '@vitest/expect': 4.1.9
       '@vitest/mocker': 4.1.9(vite@8.0.16(@types/node@22.19.21))
@@ -4139,6 +4161,7 @@ snapshots:
       vite: 8.0.16(@types/node@22.19.21)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       '@types/node': 22.19.21
     transitivePeerDependencies:
       - msw

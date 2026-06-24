@@ -1,2 +1,2 @@
 export { CredentialStore } from './store';
-export { type ProviderCredentialSummary, type ResolvedProviderCredentials } from './types';
+export { type ProviderCredentialSummary } from './types';
