@@ -10,6 +10,7 @@ import { getHtml } from './html';
 import { getPanelState } from './panelState';
 import { normalizeReasoningLevel, parseEnvText } from './parsing';
 import { isWebviewMessage, type ExtensionMessage } from '@pi-router/messages';
+import { isCancellationError } from '../shared/errors';
 
 export function openConfigPanel(
   context: vscode.ExtensionContext,
@@ -40,6 +41,8 @@ export function openConfigPanel(
 
   // OAuth-in-webview state: bridges async pi-ai callbacks → webview round-trips.
   const oauth = new WebviewOAuthBridge(panel.webview);
+  // Abort controllers for in-flight webview OAuth logins, keyed by provider.
+  const activeOAuthLogins = new Map<string, AbortController>();
 
   disposables.push(
     panel.webview.onDidReceiveMessage(async (message: unknown) => {
@@ -59,18 +62,53 @@ export function openConfigPanel(
             await postState();
             break;
 
-          case 'loginOAuth':
-            await credentials.loginOAuthProviderWithCallbacks(
-              message.providerId,
-              oauth.createCallbacks(message.providerId)
-            );
-            provider.refreshModels();
-            await postState();
-            void panel.webview.postMessage({
-              type: 'oauthDone',
-              providerId: message.providerId
+          case 'loginOAuth': {
+            const providerId = message.providerId;
+            const controller = new AbortController();
+            activeOAuthLogins.set(providerId, controller);
+            try {
+              await credentials.loginOAuthProviderWithCallbacks(providerId, {
+                ...oauth.createCallbacks(providerId),
+                signal: controller.signal
+              });
+              provider.refreshModels();
+              await postState();
+              void panel.webview.postMessage({
+                type: 'oauthDone',
+                providerId
+              } satisfies ExtensionMessage);
+            } catch (error) {
+              // A deliberate cancel resets the form quietly instead of landing
+              // in the generic error banner.
+              if (isCancellationError(error)) {
+                await panel.webview.postMessage({
+                  type: 'oauthCancelled',
+                  providerId
+                } satisfies ExtensionMessage);
+              } else {
+                throw error;
+              }
+            } finally {
+              if (activeOAuthLogins.get(providerId) === controller) {
+                activeOAuthLogins.delete(providerId);
+              }
+            }
+            break;
+          }
+
+          case 'oauthCancel':
+            activeOAuthLogins.get(message.providerId)?.abort();
+            break;
+
+          case 'confirmAction': {
+            const confirmed = await confirmDangerousAction(message.message, message.confirmLabel);
+            await panel.webview.postMessage({
+              type: 'confirmResult',
+              requestId: message.requestId,
+              confirmed
             } satisfies ExtensionMessage);
             break;
+          }
 
           case 'oauthPromptResponse':
             oauth.resolve(message.value);

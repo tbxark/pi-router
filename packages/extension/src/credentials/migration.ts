@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { parseOAuthCredentials, parseStore } from './serialization';
 import { type StoredProviderCredentials } from './types';
 
-const LEGACY_PROVIDERS_SECRET = 'piModelProvider.providers.v1';
-const LEGACY_CUSTOM_API_KEY_SECRET = 'piModelProvider.custom.apiKey';
-const LEGACY_OPENAI_CODEX_SECRET = 'piModelProvider.oauth.openai-codex';
+export const LEGACY_PROVIDERS_SECRET = 'piModelProvider.providers.v1';
+export const LEGACY_CUSTOM_API_KEY_SECRET = 'piModelProvider.custom.apiKey';
+export const LEGACY_OPENAI_CODEX_SECRET = 'piModelProvider.oauth.openai-codex';
 const OPENAI_CODEX_PROVIDER_ID = 'openai-codex';
 
 // Legacy secret keys that predate the `piRouter.*` namespace. Cleared alongside

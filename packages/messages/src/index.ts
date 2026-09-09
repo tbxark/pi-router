@@ -96,6 +96,20 @@ export interface OAuthOpenUrlMessage {
   url: string;
 }
 
+export interface OAuthCancelMessage {
+  type: 'oauthCancel';
+  providerId: string;
+}
+
+// Asks the extension host to show a native modal confirmation (webview iframes
+// cannot use `window.confirm`, which is silently ignored and returns false).
+export interface ConfirmActionMessage {
+  type: 'confirmAction';
+  requestId: string;
+  message: string;
+  confirmLabel: string;
+}
+
 export type WebviewMessage =
   | ReadyMessage
   | SaveApiKeyMessage
@@ -107,7 +121,9 @@ export type WebviewMessage =
   | OAuthPromptResponseMessage
   | OAuthSelectResponseMessage
   | OAuthManualCodeResponseMessage
-  | OAuthOpenUrlMessage;
+  | OAuthOpenUrlMessage
+  | OAuthCancelMessage
+  | ConfirmActionMessage;
 
 // ── Extension → Webview ──────────────────────────────────────────────
 
@@ -166,6 +182,17 @@ export interface OAuthDoneMessage {
   providerId: string;
 }
 
+export interface OAuthCancelledMessage {
+  type: 'oauthCancelled';
+  providerId: string;
+}
+
+export interface ConfirmResultMessage {
+  type: 'confirmResult';
+  requestId: string;
+  confirmed: boolean;
+}
+
 export type ExtensionMessage =
   | StateMessage
   | ErrorMessage
@@ -175,7 +202,9 @@ export type ExtensionMessage =
   | OAuthSelectMessage
   | OAuthManualCodeInputMessage
   | OAuthProgressMessage
-  | OAuthDoneMessage;
+  | OAuthDoneMessage
+  | OAuthCancelledMessage
+  | ConfirmResultMessage;
 
 export function isWebviewMessage(value: unknown): value is WebviewMessage {
   if (typeof value !== 'object' || value === null || !('type' in value)) {
@@ -221,6 +250,16 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
 
     case 'oauthOpenUrl':
       return typeof message.url === 'string';
+
+    case 'oauthCancel':
+      return typeof message.providerId === 'string';
+
+    case 'confirmAction':
+      return (
+        typeof message.requestId === 'string' &&
+        typeof message.message === 'string' &&
+        typeof message.confirmLabel === 'string'
+      );
 
     default:
       return false;

@@ -2,11 +2,10 @@ import {
   clampThinkingLevel,
   getSupportedThinkingLevels,
   type Api,
-  type KnownProvider,
   type Model,
   type ModelThinkingLevel
 } from '@earendil-works/pi-ai';
-import { getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
+import { getBuiltinModels, getBuiltinProviders, type BuiltinProvider } from '@earendil-works/pi-ai/providers/all';
 import type { PanelState, ReasoningModelInfo } from '@pi-router/messages';
 import { CredentialStore } from '../credentials';
 import { getLogLevel } from '../shared/config';
@@ -36,7 +35,7 @@ export async function getPanelState(credentials: CredentialStore): Promise<Panel
 
   const configured = (await credentials.listProviderCredentials())
     .map((summary) => {
-      const models = getBuiltinModels(summary.providerId as KnownProvider);
+      const models = getBuiltinModels(summary.providerId as BuiltinProvider);
       return {
         id: summary.providerId,
         label: getProviderDisplayName(summary.providerId),

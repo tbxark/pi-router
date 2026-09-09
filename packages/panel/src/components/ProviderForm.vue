@@ -63,6 +63,11 @@ type OAuthStep =
 const oauthStep = ref<OAuthStep>({ type: 'idle' });
 const oauthInput = ref('');
 
+// Pending native-dialog confirmations, keyed by requestId (F1: webview
+// iframes silently ignore `window.confirm`, so confirmation round-trips to
+// the extension host).
+const pendingConfirms = new Map<string, (confirmed: boolean) => void>();
+
 let oauthCleanup: (() => void) | null = null;
 
 onMounted(() => {
@@ -109,6 +114,15 @@ onMounted(() => {
       case 'oauthDone':
         oauthStep.value = { type: 'done' };
         break;
+      case 'oauthCancelled':
+        oauthStep.value = { type: 'idle' };
+        break;
+      case 'confirmResult': {
+        const resolve = pendingConfirms.get(message.requestId);
+        pendingConfirms.delete(message.requestId);
+        resolve?.(message.confirmed);
+        break;
+      }
       case 'error':
         oauthStep.value = { type: 'error', message: message.error };
         break;
@@ -172,14 +186,15 @@ const saveButtonText = computed(() => (isEditing.value ? 'Update Provider' : 'Ad
 
 const canSave = computed(() => Boolean(currentProvider.value && (apiKey.value || envText.value)));
 
-function onSave() {
+async function onSave() {
   if (!currentProvider.value) return;
 
   if (
     isEditing.value &&
-    !confirmDangerousAction(
-      'Update this provider credentials? Existing saved credentials for this provider will be overwritten.'
-    )
+    !(await confirmDangerousAction(
+      'Update this provider credentials? Existing saved credentials for this provider will be overwritten.',
+      'Update'
+    ))
   ) {
     return;
   }
@@ -194,12 +209,15 @@ function onSave() {
   emit('close');
 }
 
-function onStartOAuth() {
+async function onStartOAuth() {
   if (!currentProvider.value) return;
 
   if (
     isEditing.value &&
-    !confirmDangerousAction('Reauthorize this provider? Existing OAuth credentials for this provider will be replaced.')
+    !(await confirmDangerousAction(
+      'Reauthorize this provider? Existing OAuth credentials for this provider will be replaced.',
+      'Reauthorize'
+    ))
   ) {
     return;
   }
@@ -208,8 +226,15 @@ function onStartOAuth() {
   postMessage({ type: 'loginOAuth', providerId: currentProvider.value.id });
 }
 
-function confirmDangerousAction(message: string): boolean {
-  return window.confirm(message);
+// Webview iframes cannot show `window.confirm` (sandboxed without
+// `allow-modals` — the call is ignored and returns false), so the extension
+// host shows the native modal and replies with `confirmResult`.
+function confirmDangerousAction(message: string, confirmLabel: string): Promise<boolean> {
+  const requestId = crypto.randomUUID();
+  return new Promise<boolean>((resolve) => {
+    pendingConfirms.set(requestId, resolve);
+    postMessage({ type: 'confirmAction', requestId, message, confirmLabel });
+  });
 }
 
 function onSubmitOAuthPrompt() {
@@ -236,6 +261,9 @@ function onSubmitOAuthCode() {
 }
 
 function onCancelOAuth() {
+  // Reset the UI immediately; the extension host aborts the in-flight flow
+  // and replies with `oauthCancelled` (a no-op if already idle).
+  postMessage({ type: 'oauthCancel', providerId: selectedProviderId.value });
   oauthStep.value = { type: 'idle' };
 }
 

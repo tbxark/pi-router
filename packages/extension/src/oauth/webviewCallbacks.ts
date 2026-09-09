@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { type AuthLoginCallbacks, type AuthPrompt } from '@earendil-works/pi-ai';
+import { type AuthInteraction, type AuthPrompt } from '@earendil-works/pi-ai';
 import type { ExtensionMessage } from '@pi-router/messages';
 
 // OAuth login UX bridged across the webview boundary. pi-ai's async callbacks are
@@ -16,7 +16,7 @@ export class WebviewOAuthBridge {
     this.resolver?.(value);
   }
 
-  createCallbacks(providerId: string): AuthLoginCallbacks {
+  createCallbacks(providerId: string): AuthInteraction {
     return {
       prompt: (prompt) => this.prompt(providerId, prompt),
       notify: (event) => {

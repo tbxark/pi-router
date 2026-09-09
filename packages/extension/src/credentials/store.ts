@@ -4,8 +4,9 @@ import {
   type Api,
   type ApiKeyCredential,
   type AuthContext,
-  type AuthLoginCallbacks,
+  type AuthInteraction,
   type Credential as PiCredential,
+  type CredentialInfo,
   type CredentialStore as PiCredentialStore,
   type Model,
   type ModelThinkingLevel,
@@ -21,7 +22,7 @@ import { type ProviderCredentialSummary, type StoredProviderCredential, type Sto
 const PROVIDERS_SECRET = 'piRouter.providers.v1';
 
 // Persists provider credentials to VS Code SecretStorage. This is pure storage:
-// it carries no UI. OAuth login UX is supplied by the caller as `AuthLoginCallbacks`
+// it carries no UI. OAuth login UX is supplied by the caller as `AuthInteraction`
 // (see oauth/nativeCallbacks.ts and oauth/webviewCallbacks.ts).
 export class CredentialStore implements PiCredentialStore {
   private readonly models = createPiModels(this);
@@ -29,6 +30,14 @@ export class CredentialStore implements PiCredentialStore {
   private readonly modifyChains = new Map<string, Promise<void>>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
+
+  // pi-ai CredentialStore.list: non-secret metadata enumeration only.
+  async list(): Promise<readonly CredentialInfo[]> {
+    const store = await this.loadStore();
+    return Object.entries(store.providers)
+      .map(([providerId, credential]) => ({ providerId, type: credential.type }))
+      .sort((a, b) => a.providerId.localeCompare(b.providerId));
+  }
 
   async listProviderCredentials(): Promise<ProviderCredentialSummary[]> {
     const store = await this.loadStore();
@@ -77,28 +86,37 @@ export class CredentialStore implements PiCredentialStore {
   }
 
   async setModelReasoning(providerId: string, modelId: string, level: ModelThinkingLevel | null): Promise<void> {
-    const store = await this.loadStore();
-    const credential = store.providers[providerId];
-    if (!credential) {
-      return;
-    }
+    // Queued like every other write: reasoning updates rewrite the whole store
+    // blob and must not interleave with a concurrent OAuth token refresh.
+    await this.enqueueModify(providerId, async () => {
+      const store = await this.loadStore();
+      const credential = store.providers[providerId];
+      if (!credential) {
+        return;
+      }
 
-    const reasoning = { ...credential.reasoning };
-    if (level === null) {
-      delete reasoning[modelId];
-    } else {
-      reasoning[modelId] = level;
-    }
+      const reasoning = { ...credential.reasoning };
+      if (level === null) {
+        delete reasoning[modelId];
+      } else {
+        reasoning[modelId] = level;
+      }
 
-    store.providers[providerId] = {
-      ...credential,
-      reasoning: Object.keys(reasoning).length > 0 ? reasoning : undefined,
-      updatedAt: Date.now()
-    };
-    await this.saveStore(store);
+      store.providers[providerId] = {
+        ...credential,
+        reasoning: Object.keys(reasoning).length > 0 ? reasoning : undefined,
+        updatedAt: Date.now()
+      };
+      await this.saveStore(store);
+    });
   }
 
-  async loginOAuthProviderWithCallbacks(providerId: string, callbacks: AuthLoginCallbacks): Promise<void> {
+  // `signal` is required by pi-ai's ProviderAuthInteraction: login flows abort
+  // per-prompt prompts and callback servers through it.
+  async loginOAuthProviderWithCallbacks(
+    providerId: string,
+    callbacks: AuthInteraction & { signal: AbortSignal }
+  ): Promise<void> {
     const oauth = this.models.getProvider(providerId)?.auth.oauth;
     if (!oauth) {
       throw new Error(`pi-ai OAuth provider is not available for ${providerId}.`);
@@ -169,14 +187,10 @@ export class CredentialStore implements PiCredentialStore {
 
     const stored = await this.read(provider.id);
     if (stored?.type === 'api_key') {
-      return this.canResolveApiKeyCredential(
-        provider.id,
-        {
-          ...stored,
-          env: { ...stored.env, ...env }
-        },
-        model
-      );
+      return this.canResolveApiKeyCredential(provider.id, {
+        ...stored,
+        env: { ...stored.env, ...env }
+      });
     }
 
     return Boolean(await this.models.getAuth(model));
@@ -188,28 +202,26 @@ export class CredentialStore implements PiCredentialStore {
 
   private async canResolveApiKeyCredential(
     providerId: string,
-    credential: ApiKeyCredential | StoredProviderCredential,
-    model?: Model<Api>
+    credential: ApiKeyCredential | StoredProviderCredential
   ): Promise<boolean> {
     if (credential.type !== 'api_key') {
       return false;
     }
 
     const provider = this.models.getProvider(providerId);
-    const requestModel = model ?? this.models.getModels(providerId)[0];
-    if (!provider?.auth.apiKey || !requestModel) {
+    if (!provider?.auth.apiKey) {
       return false;
     }
 
     try {
       const auth = await provider.auth.apiKey.resolve({
-        model: requestModel,
         ctx: this.authContextWithEnv(credential.env ?? {}),
         credential: {
           type: 'api_key',
           key: credential.key,
           env: credential.env
-        }
+        },
+        signal: new AbortController().signal
       });
       return Boolean(auth);
     } catch {

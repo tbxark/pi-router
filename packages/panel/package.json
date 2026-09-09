@@ -15,14 +15,14 @@
   },
   "dependencies": {
     "@pi-router/messages": "workspace:*",
-    "vue": "^3.5.13"
+    "vue": "^3.5.42"
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@vitejs/plugin-vue": "^5.2.3",
-    "typescript": "^5.9.2",
-    "vite": "^6.3.5",
-    "vitest": "^4.1.9",
-    "vue-tsc": "^2.2.10"
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0",
+    "vue-tsc": "^3.3.11"
   }
 }

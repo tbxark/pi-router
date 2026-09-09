@@ -5,6 +5,7 @@ import { CredentialStore } from '../credentials';
 import { PiLanguageModelProvider } from '../languageModel';
 import { createNativeOAuthCallbacks } from '../oauth/nativeCallbacks';
 import { confirmDangerousAction } from '../shared/dialogs';
+import { isCancellationError } from '../shared/errors';
 import {
   getProviderApiKeyEnvVars,
   getProviderDisplayName,
@@ -18,11 +19,29 @@ export function registerCommands(
   credentials: CredentialStore,
   provider: PiLanguageModelProvider
 ): vscode.Disposable[] {
+  // Without this wrapper a thrown error (or a deliberate OAuth cancel, which
+  // the login adapters reject) escapes into VS Code's generic command-failure
+  // notification.
+  const safely = (label: string, action: () => Promise<void>): Promise<void> =>
+    action().catch((error: unknown) => {
+      if (isCancellationError(error)) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showErrorMessage(`${label}: ${message}`);
+    });
+
   return [
     vscode.commands.registerCommand('piRouter.configure', () => openConfigPanel(context, credentials, provider)),
-    vscode.commands.registerCommand('piRouter.addProviderApiKey', () => addProviderApiKey(credentials, provider)),
-    vscode.commands.registerCommand('piRouter.loginOAuthProvider', () => loginOAuthProvider(credentials, provider)),
-    vscode.commands.registerCommand('piRouter.clearCredentials', () => clearCredentials(credentials, provider))
+    vscode.commands.registerCommand('piRouter.addProviderApiKey', () =>
+      safely('Pi Router: failed to save credentials', () => addProviderApiKey(credentials, provider))
+    ),
+    vscode.commands.registerCommand('piRouter.loginOAuthProvider', () =>
+      safely('Pi Router: OAuth login failed', () => loginOAuthProvider(credentials, provider))
+    ),
+    vscode.commands.registerCommand('piRouter.clearCredentials', () =>
+      safely('Pi Router: failed to clear credentials', () => clearCredentials(credentials, provider))
+    )
   ];
 }
 
@@ -78,7 +97,13 @@ async function loginOAuthProvider(credentials: CredentialStore, provider: PiLang
     }
   }
 
-  await credentials.loginOAuthProviderWithCallbacks(providerId, createNativeOAuthCallbacks(providerId));
+  // pi-ai login flows require a real AbortSignal; there is no cancel affordance
+  // in the native-dialog path, so this controller simply stays live.
+  const controller = new AbortController();
+  await credentials.loginOAuthProviderWithCallbacks(providerId, {
+    ...createNativeOAuthCallbacks(providerId),
+    signal: controller.signal
+  });
   provider.refreshModels();
   vscode.window.showInformationMessage(`${getProviderDisplayName(providerId)} OAuth login completed.`);
 }

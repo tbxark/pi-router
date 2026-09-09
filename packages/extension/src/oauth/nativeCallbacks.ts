@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { type AuthLoginCallbacks, type AuthPrompt } from '@earendil-works/pi-ai';
+import { type AuthInteraction, type AuthPrompt } from '@earendil-works/pi-ai';
 import { getProviderDisplayName, getProviderOAuthName } from '../shared/providerMetadata';
 
 // OAuth login UX driven through native VS Code dialogs (the CLI-command path).
 // The webview path uses a separate adapter (see oauth/webviewCallbacks.ts).
-export function createNativeOAuthCallbacks(providerId: string): AuthLoginCallbacks {
+export function createNativeOAuthCallbacks(providerId: string): AuthInteraction {
   const providerName = getProviderOAuthName(providerId) ?? getProviderDisplayName(providerId);
   return {
     prompt: (prompt) => promptNative(prompt),

@@ -3,6 +3,18 @@ export enum LanguageModelChatMessageRole {
   Assistant = 2
 }
 
+// Minimal storage/context shapes so credential tests can inject in-memory
+// fakes without depending on the real `vscode` module types.
+export interface SecretStorage {
+  get(key: string): Promise<string | undefined>;
+  store(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+export interface ExtensionContext {
+  secrets: SecretStorage;
+}
+
 export enum LanguageModelChatToolMode {
   Auto = 1,
   Required = 2

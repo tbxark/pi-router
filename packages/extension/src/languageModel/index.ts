@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
-import { type Api, type AssistantMessageEvent, type Model, type SimpleStreamOptions } from '@earendil-works/pi-ai';
+import {
+  type Api,
+  type AssistantMessageEvent,
+  type Model,
+  type SimpleStreamOptions,
+  type ToolChoice
+} from '@earendil-works/pi-ai';
 import {
   createResponseConverter,
   textFromParts,
@@ -90,14 +96,17 @@ export class PiLanguageModelProvider implements vscode.LanguageModelChatProvider
     const abort = new AbortController();
     const disposable = token.onCancellationRequested(() => abort.abort());
     try {
-      const requestOptions: SimpleStreamOptions & { toolChoice?: string } = {
+      const requestOptions: SimpleStreamOptions = {
         env: settings.env,
         signal: abort.signal,
         sessionId: `${model.provider}-vscode-pi-chat`
       };
 
       if (_options.tools?.length) {
-        requestOptions.toolChoice = toPiToolChoice(model.api, _options.toolMode);
+        // pi-ai's neutral ToolChoice type is "auto" | "none", but its adapters forward
+        // provider-specific strings ("any"/"required") verbatim to the provider, so the
+        // forced-tool mapping stays intact despite the narrower type.
+        requestOptions.toolChoice = toPiToolChoice(model.api, _options.toolMode) as ToolChoice;
       }
 
       const reasoning = resolveReasoningLevel(model, settings.reasoning?.[resolved.model.id]);
